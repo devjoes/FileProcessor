@@ -41,8 +41,17 @@ namespace FileProcessor
         public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, IAsyncEnumerable<TOut>> step)
         {
             this.handleArguments(step);
-            this.Steps.Add(input => toSingleAsyncEnumerable(step((TIn)input)));
+            this.Steps.Add(input => toAsyncEnumerable(step((TIn)input)));
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
+        }
+
+
+        private static async IAsyncEnumerable<object> toAsyncEnumerable<TOut>(IAsyncEnumerable<TOut> enumerable)
+        {
+            await foreach (var item in enumerable)
+            {
+                yield return item;
+            }
         }
 
         private static async IAsyncEnumerable<object> toSingleAsyncEnumerable<TOut>(Task<TOut> task)
@@ -60,14 +69,22 @@ namespace FileProcessor
         public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, Task<TOut>> step)
         {
             this.handleArguments(step);
-            this.Steps.Add(input => toSingleAsyncEnumerable(step((TIn)input)));
+            this.Steps.Add(input =>
+            {
+                var output = step((TIn) input);
+                return toSingleAsyncEnumerable(output);
+            });
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
         }
 
         public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, TOut> step)
         {
             this.handleArguments(step);
-            this.Steps.Add(input => toSingleAsyncEnumerable(step((TIn)input)));
+            this.Steps.Add(input =>
+            {
+                var output = step((TIn) input);
+                return toSingleAsyncEnumerable(output);
+            });
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
         }
 
@@ -84,6 +101,10 @@ namespace FileProcessor
                     throw new ArgumentException("Could not determine Result of " +
                                                 step.GetType().GenericTypeArguments.Last());
                 }
+            }
+            if (outType.IsGenericType && outType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+            {
+                outType = outType.GenericTypeArguments.Single();
             }
 
             if (this.lastOutType != null && !inType.IsAssignableFrom(this.lastOutType))
@@ -157,21 +178,18 @@ namespace FileProcessor
         private async IAsyncEnumerable<TOut> getEnumerableReturnValues<TOut>(AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer,
             [EnumeratorCancellation] CancellationToken cancel = default)
         {
-            bool foundType = false, isTask = true, isEnumerable = false, isAsyncEnumerable = false;
             while (!finalBuffer.IsCompleted)
             {
                 var item = await finalBuffer.TakeAsync(cancel);
-                if (!foundType)
+                if (finalBuffer.IsCompleted && item == null)
                 {
-                    var type = item.Work.GetType();
-                    isTask = typeof(Task<>).IsAssignableFrom(type);
-                    isAsyncEnumerable = typeof(IAsyncEnumerable<>).IsAssignableFrom(type);
-                    isEnumerable = typeof(IEnumerable<>).IsAssignableFrom(type);
-                    foundType = true;
+                    yield break;
                 }
-
                 switch (item.Work)
                 {
+                    case null:
+                        yield return default;
+                        break;
                     case TOut inst:
                         yield return inst;
                         break;
@@ -200,6 +218,11 @@ namespace FileProcessor
                         throw new InvalidOperationException(
                             $"Type {item.Work.GetType().FullName} cannot be converted to " +
                             $"{typeof(Task<TOut>).FullName}, {typeof(IAsyncEnumerable<TOut>).FullName}, {typeof(IEnumerable<TOut>).FullName} or {typeof(TOut).FullName}");
+                }
+
+                if (!item.CompletionSource.Task.IsCompleted)
+                {
+                    item.CompletionSource.SetResult(item.Work);
                 }
             }
         }

@@ -79,13 +79,6 @@ namespace FileProcessor
                 {
                     var individualCompletionSource = new TaskCompletionSource<object>();
                     subTasks.Add(individualCompletionSource.Task);
-                    //individualCompletionSource.Task.ContinueWith((task, allFinished) =>
-                    //{
-                    //    if ((bool)allFinished&& subTasks.All(t => t.IsCompleted))
-                    //    {
-                    //        consumed.CompletionSource.TrySetResult(subTasks.Select(t => t.Result));
-                    //    }
-                    //}, finished);
                     next.Add(new WorkWrapper<object>
                     {
                         Work = result,

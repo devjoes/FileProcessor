@@ -133,8 +133,19 @@ namespace FileProcessor.Tests
             var delays = (word+word).Select(_ => rnd.Next(300, 3000)).ToArray();
             var delaysQueue = new Queue<int>(delays);
             var step = new TestAsyncEnumerableStep(delaysQueue);
+            int firstCounter = 0, lastCounter = 0;
             var processor = new Builder()
+                .AddStep<char, char>(i =>
+                 {
+                     firstCounter++;
+                     return i;
+                 })
                 .AddStep(step)
+                .AddStep(i =>
+                {
+                    lastCounter++;
+                    return i;
+                })
                 .ReturnsAsyncEnumerable<char>();
 
             var result = processor(word);
@@ -150,13 +161,26 @@ namespace FileProcessor.Tests
                 {
                     swFirst.Stop();
                 }
-                Assert.Equal(++counter, step.ReturnedValues);
+
+                counter++;
+                if (counter % 2 == 0)
+                {
+                    Assert.Equal(counter, step.ReturnedValues);
+                }
+                else
+                {
+                    // step produces values two at a time but we process them one at a time
+                    Assert.Equal(counter+1, step.ReturnedValues);
+                }
+                Assert.Equal(lastCounter, step.ReturnedValues);
 
                 resultText += c;
             }
             swAll.Stop();
 
             Assert.Equal("hHeElLlLoO", resultText);
+            Assert.Equal(word.Length, firstCounter);
+            Assert.Equal(word.Length*2, lastCounter);
             Assert.True(swAll.ElapsedMilliseconds > swFirst.ElapsedMilliseconds);
             Assert.True(swAll.ElapsedMilliseconds > delays.Max());
             Assert.True(swAll.ElapsedMilliseconds < delays.Sum());
@@ -204,24 +228,61 @@ namespace FileProcessor.Tests
                 .Returns<string[]>();
 
             var result = await process(48);
-            
+
             Assert.Equal("8,6,4,3,2", result.Last());
         }
+
+
+        //[Theory]
+        //[InlineData(true)]
+        //[InlineData(false)]
+        //public async Task DisposeTest(bool autoDispose)
+        //{
+        //    var step = new TestStep();
+        //    var asyncStep = new TestAsyncStep();
+        //    var process = new Builder()
+        //        .AddStep(step)
+        //        .AddStep(asyncStep)
+        //        .Returns<string>(autoDispose);
+
+        //    Assert.False(step.Disposed);
+        //    Assert.False(asyncStep.Disposed);
+        //    var result = await process("abc");
+        //    Assert.True(step.Disposed);
+        //    Assert.True(asyncStep.Disposed);
+
+        //    Assert.Equal("abc", result);
+        //}
     }
 
-    class TestStep : IStep<string, string>
+    class TestStep : IStep<string, string>, IDisposable
     {
         public string Execute(string input)
         {
             return new string(input.Reverse().ToArray());
         }
+
+        public void Dispose()
+        {
+            this.Disposed = true;
+        }
+
+        public bool Disposed { get; set; }
     }
-    class TestAsyncStep : IAsyncStep<string, string>
+    class TestAsyncStep : IAsyncStep<string, string>, IAsyncDisposable
     {
         public async Task<string> Execute(string input)
         {
             return await Task.FromResult(new string(input.Reverse().ToArray()));
         }
+
+        public ValueTask DisposeAsync()
+        {
+            this.Disposed = true;
+            return new ValueTask();
+        }
+
+        public bool Disposed { get; set; }
     }
 
     class TestAsyncEnumerableStep : IAsyncEnumerableStep<char, char>

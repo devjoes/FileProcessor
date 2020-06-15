@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 
 namespace FileProcessor
 {
-    public class AwaitableBlockingCollection<T>:IDisposable
+    public class AwaitableBlockingCollection<T> : IDisposable
     {
         private readonly SemaphoreSlim isEmptySemaphore;
         private readonly BlockingCollection<T> blockingCollection;
 
         public AwaitableBlockingCollection()
         {
-            this.isEmptySemaphore = new SemaphoreSlim(0,1);
+            this.isEmptySemaphore = new SemaphoreSlim(0, 1);
             this.blockingCollection = new BlockingCollection<T>();
         }
         public bool IsCompleted => this.blockingCollection.IsCompleted;
@@ -35,10 +35,10 @@ namespace FileProcessor
 
         public async Task<T> TakeAsync(CancellationToken cancel)
         {
-            T item;
-            while (!this.TryTake(out item))
+            T item = default;
+            while (!this.TryTake(out item) && !this.IsCompleted)
             {
-                await this.isEmptySemaphore.WaitAsync(cancel);
+                await this.isEmptySemaphore.WaitAsync(TimeSpan.FromMilliseconds(500), cancel);
             }
 
             return item;
