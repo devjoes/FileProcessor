@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
 using FileProcessor.Providers;
 
 namespace FileProcessor.Transformers
 {
-    public class UnZipTransformer:IAsyncEnumerableStep<IFileReference,IFileReference>, IDisposable
+    public class UnZipTransformer : IAsyncEnumerableStep<IFileReference, IFileReference>, IDisposable
     {
         private string tmpDir;
 
@@ -30,10 +29,7 @@ namespace FileProcessor.Transformers
 
         public void Dispose()
         {
-            if (this.tmpDir != null)
-            {
-                Directory.Delete(this.tmpDir, true);
-            }
+            if (this.tmpDir != null) Directory.Delete(this.tmpDir, true);
         }
     }
 }

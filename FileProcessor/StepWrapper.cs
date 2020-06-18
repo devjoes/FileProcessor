@@ -12,9 +12,10 @@ namespace FileProcessor
 
         public StepWrapper(CancellationToken cancel)
         {
-
             this.cancel = cancel;
         }
+
+        public Task[] Tasks { get; set; }
 
         public AwaitableBlockingCollection<WorkWrapper<TIn>> Setup<TIn, TOut>(Func<TIn, IAsyncEnumerable<TOut>> step,
             StepOptions options, AwaitableBlockingCollection<WorkWrapper<object>> next)
@@ -33,24 +34,20 @@ namespace FileProcessor
             return buffer;
         }
 
-        private async Task mainLoop<TIn, TOut>(IEnumerable<WorkWrapper<TIn>> enumerable, AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step)
+        private async Task mainLoop<TIn, TOut>(IEnumerable<WorkWrapper<TIn>> enumerable,
+            AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step)
         {
             foreach (var consumed in enumerable)
-            {
                 try
                 {
                     if (consumed.CompletionSource.Task.IsCompleted)
-                    {
                         next.Add(new WorkWrapper<object>
                         {
                             Work = default,
                             CompletionSource = consumed.CompletionSource
                         }, this.cancel);
-                    }
                     else
-                    {
                         await this.passWorkToNextStep(next, step(consumed.Work), consumed);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -61,24 +58,20 @@ namespace FileProcessor
                         CompletionSource = consumed.CompletionSource
                     }, this.cancel);
                 }
-            }
+
             next.CompleteAdding();
-            if (step is IAsyncDisposable ad)
-            {
-                await ad.DisposeAsync();
-            }
+            if (step is IAsyncDisposable ad) await ad.DisposeAsync();
             (step as IDisposable)?.Dispose();
         }
 
-        public Task[] Tasks { get; set; }
-
-        private async Task passWorkToNextStep<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<object>> next, IAsyncEnumerable<TOut> enumerable,
+        private async Task passWorkToNextStep<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<object>> next,
+            IAsyncEnumerable<TOut> enumerable,
             WorkWrapper<TIn> consumed)
         {
             var enumerator = enumerable.GetAsyncEnumerator(this.cancel);
-            bool finished = !await enumerator.MoveNextAsync();
-            bool first = true;
-            List<Task<object>> subTasks = new List<Task<object>>();
+            var finished = !await enumerator.MoveNextAsync();
+            var first = true;
+            var subTasks = new List<Task<object>>();
 
             do
             {
@@ -121,11 +114,13 @@ namespace FileProcessor
             {
                 this.builder = builder;
             }
+
             public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(Func<T, TOut> step, StepOptions options = null)
             {
                 this.builder.AddStep(step, options);
                 return new FluentBuilder<TFirstIn, TOut>(this.builder);
             }
+
             public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(Func<T, Task<TOut>> step, StepOptions options = null)
             {
                 this.builder.AddStep(step, options);
@@ -137,7 +132,9 @@ namespace FileProcessor
                 this.builder.AddStep(step, options);
                 return new FluentBuilder<TFirstIn, TOut>(this.builder);
             }
-            public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(IAsyncEnumerableStep<T, TOut> step, StepOptions options = null)
+
+            public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(IAsyncEnumerableStep<T, TOut> step,
+                StepOptions options = null)
             {
                 this.builder.AddStep(step, options);
                 return new FluentBuilder<TFirstIn, TOut>(this.builder);
@@ -148,7 +145,8 @@ namespace FileProcessor
                 return this.builder.Build<TFirstIn, TOut>(cancel, autoDispose);
             }
 
-            public Func<TFirstIn, IAsyncEnumerable<TOut>> ReturnsAsyncEnumerable<TOut>(CancellationToken cancel = default, bool autoDispose = true)
+            public Func<TFirstIn, IAsyncEnumerable<TOut>> ReturnsAsyncEnumerable<TOut>(
+                CancellationToken cancel = default, bool autoDispose = true)
             {
                 return this.builder.BuildEnumerable<TFirstIn, TOut>(cancel, autoDispose);
             }

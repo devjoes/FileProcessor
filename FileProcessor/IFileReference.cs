@@ -5,7 +5,7 @@ namespace FileProcessor
 {
     public interface IFileReference
     {
-        Task<FileInfo> GetLocalFileInfo();
         string FileReference { get; }
+        Task<FileInfo> GetLocalFileInfo();
     }
 }

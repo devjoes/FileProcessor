@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace FileProcessor
 {
-    public class Builder:IDisposable
+    public class Builder : IDisposable
     {
-        private Type lastOutType = null;
+        private Type lastOutType;
 
         public Builder()
         {
@@ -17,32 +17,43 @@ namespace FileProcessor
             this.RunAfterCompletion = new List<Func<Task>>();
             this.StepOptions = new List<StepOptions>();
         }
-    
+
+        public IList<Func<object, IAsyncEnumerable<object>>> Steps { get; }
+        public IList<StepOptions> StepOptions { get; }
+        public IList<Func<Task>> RunAfterCompletion { get; }
+
+        public void Dispose()
+        {
+            Task.WaitAll(this.RunAfterCompletion.Select(i => i()).ToArray());
+        }
+
         private static Func<Task> tryDispose(object step)
         {
             return async () =>
             {
                 (step as IDisposable)?.Dispose();
-                if (step is IAsyncDisposable ad)
-                {
-                    await ad.DisposeAsync();
-                }
+                if (step is IAsyncDisposable ad) await ad.DisposeAsync();
             };
         }
 
-        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IAsyncEnumerableStep<TIn, TOut> step, StepOptions options = null)
+        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IAsyncEnumerableStep<TIn, TOut> step,
+            StepOptions options = null)
         {
             return this
                 .AddStep<TIn, TIn, TOut>((Func<TIn, IAsyncEnumerable<TOut>>) step.Execute, options ?? new StepOptions())
                 .AfterCompletion(tryDispose(step));
         }
-        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IAsyncStep<TIn, TOut> step, StepOptions options = null)
+
+        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IAsyncStep<TIn, TOut> step,
+            StepOptions options = null)
         {
             return this
-                .AddStep<TIn, TIn, TOut>((Func<TIn, Task<TOut>>)step.Execute, options ?? new StepOptions())
+                .AddStep<TIn, TIn, TOut>((Func<TIn, Task<TOut>>) step.Execute, options ?? new StepOptions())
                 .AfterCompletion(tryDispose(step));
         }
-        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IStep<TIn, TOut> step, StepOptions options = null)
+
+        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(IStep<TIn, TOut> step,
+            StepOptions options = null)
         {
             return this
                 .AddStep<TIn, TIn, TOut>((Func<TIn, TOut>) step.Execute, options ?? new StepOptions())
@@ -53,38 +64,43 @@ namespace FileProcessor
         {
             return this.AddStep<TIn, TIn, TOut>(step, options ?? new StepOptions());
         }
-        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(Func<TIn, Task<TOut>> step, StepOptions options = null)
+
+        public StepWrapper.FluentBuilder<TIn, TOut> AddStep<TIn, TOut>(Func<TIn, Task<TOut>> step,
+            StepOptions options = null)
         {
             return this.AddStep<TIn, TIn, TOut>(step, options ?? new StepOptions());
         }
 
-        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, IAsyncEnumerable<TOut>> step, StepOptions options = null)
+        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(
+            Func<TIn, IAsyncEnumerable<TOut>> step, StepOptions options = null)
         {
             this.handleArguments(step);
-            this.StepOptions.Add(options??new StepOptions());
-            this.Steps.Add(input => enumerateAsyncEnumerable(step((TIn)input)));
+            this.StepOptions.Add(options ?? new StepOptions());
+            this.Steps.Add(input => enumerateAsyncEnumerable(step((TIn) input)));
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
         }
-        
-        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, Task<TOut>> step, StepOptions options = null)
+
+        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, Task<TOut>> step,
+            StepOptions options = null)
         {
             this.handleArguments(step);
-            this.StepOptions.Add(options??new StepOptions());
+            this.StepOptions.Add(options ?? new StepOptions());
             this.Steps.Add(input =>
             {
-                var output = step((TIn)input);
+                var output = step((TIn) input);
                 return toSingleAsyncEnumerable(output);
             });
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
         }
 
-        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, TOut> step, StepOptions options = null)
+        public StepWrapper.FluentBuilder<TFirstIn, TOut> AddStep<TFirstIn, TIn, TOut>(Func<TIn, TOut> step,
+            StepOptions options = null)
         {
             this.handleArguments(step);
-            this.StepOptions.Add(options??new StepOptions());
+            this.StepOptions.Add(options ?? new StepOptions());
             this.Steps.Add(input =>
             {
-                var output = step((TIn)input);
+                var output = step((TIn) input);
                 return toSingleAsyncEnumerable(output);
             });
             return new StepWrapper.FluentBuilder<TFirstIn, TOut>(this);
@@ -93,16 +109,13 @@ namespace FileProcessor
         public StepWrapper.FluentBuilder<IEnumerable<T>, T> AcceptCollection<T>()
         {
             this.StepOptions.Insert(0, new StepOptions());
-            this.Steps.Insert(0, input => toAsyncEnumerable((IEnumerable<T>)input));
+            this.Steps.Insert(0, input => toAsyncEnumerable((IEnumerable<T>) input));
             return new StepWrapper.FluentBuilder<IEnumerable<T>, T>(this);
         }
 
         private static async IAsyncEnumerable<object> enumerateAsyncEnumerable<TOut>(IAsyncEnumerable<TOut> enumerable)
         {
-            await foreach (var item in enumerable)
-            {
-                yield return item;
-            }
+            await foreach (var item in enumerable) yield return item;
         }
 
         private static async IAsyncEnumerable<object> toSingleAsyncEnumerable<TOut>(Task<TOut> task)
@@ -116,15 +129,12 @@ namespace FileProcessor
         {
             yield return value;
         }
-        
+
 #pragma warning disable 1998
         private static async IAsyncEnumerable<object> toAsyncEnumerable<T>(IEnumerable<T> input)
 #pragma warning restore 1998
         {
-            foreach (var item in input)
-            {
-                yield return item;
-            }
+            foreach (var item in input) yield return item;
         }
 
         private void handleArguments<TIn, TOut>(Func<TIn, TOut> step)
@@ -136,36 +146,28 @@ namespace FileProcessor
                 var result = outType.GetProperty("Result");
                 outType = result?.PropertyType;
                 if (outType == null)
-                {
                     throw new ArgumentException("Could not determine Result of " +
                                                 step.GetType().GenericTypeArguments.Last());
-                }
-            }
-            if (outType.IsGenericType && outType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
-            {
-                outType = outType.GenericTypeArguments.Single();
             }
 
+            if (outType.IsGenericType && outType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+                outType = outType.GenericTypeArguments.Single();
+
             if (this.lastOutType != null && !inType.IsAssignableFrom(this.lastOutType))
-            {
                 throw new ArgumentException(
                     $"Input type {inType.FullName} cannot be assigned from previous output type {this.lastOutType.FullName}");
-            }
 
             this.lastOutType = outType;
         }
 
-        public IList<Func<object, IAsyncEnumerable<object>>> Steps { get; }
-        public IList<StepOptions> StepOptions { get; }
-        public IList<Func<Task>> RunAfterCompletion { get; }
 
-
-        public Action<TFirstIn, bool> Build<TFirstIn>(AwaitableBlockingCollection<WorkWrapper<object>> finalStepBuffer, CancellationToken cancel)
+        public Action<TFirstIn, bool> Build<TFirstIn>(AwaitableBlockingCollection<WorkWrapper<object>> finalStepBuffer,
+            CancellationToken cancel)
         {
             var nextStepBuffer = finalStepBuffer;
             var setupSteps = new StepWrapper[this.Steps.Count];
 
-            for (int i = this.Steps.Count - 1; i >= 0; i--)
+            for (var i = this.Steps.Count - 1; i >= 0; i--)
             {
                 var step = new StepWrapper(cancel);
                 nextStepBuffer = step.Setup(this.Steps[i], this.StepOptions[i], nextStepBuffer);
@@ -181,8 +183,9 @@ namespace FileProcessor
                     firstStepBuffer.CompleteAdding();
                     return;
                 }
+
                 var tcs = new TaskCompletionSource<object>();
-                var work = new WorkWrapper<object> { Work = i, CompletionSource = tcs };
+                var work = new WorkWrapper<object> {Work = i, CompletionSource = tcs};
                 firstStepBuffer.Add(work, cancel);
             };
         }
@@ -199,23 +202,18 @@ namespace FileProcessor
             };
         }
 
-        public Func<TFirstIn, IAsyncEnumerable<TOut>> BuildEnumerable<TFirstIn, TOut>(CancellationToken cancel, bool autoDispose)
+        public Func<TFirstIn, IAsyncEnumerable<TOut>> BuildEnumerable<TFirstIn, TOut>(CancellationToken cancel,
+            bool autoDispose)
         {
             var finalStepBuffer = new AwaitableBlockingCollection<WorkWrapper<object>>();
             var build = this.Build<TFirstIn>(finalStepBuffer, cancel);
             return input =>
             {
                 if (input is IEnumerable<TFirstIn> inputCollection)
-                {
                     foreach (var item in inputCollection)
-                    {
                         build(item, false);
-                    }
-                }
                 else
-                {
                     build(input, false);
-                }
 
                 build(default, true);
 
@@ -223,16 +221,14 @@ namespace FileProcessor
             };
         }
 
-        private async IAsyncEnumerable<TOut> getEnumerableReturnValues<TOut>(AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer,
+        private async IAsyncEnumerable<TOut> getEnumerableReturnValues<TOut>(
+            AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer,
             [EnumeratorCancellation] CancellationToken cancel, bool autoDispose)
         {
             while (!finalBuffer.IsCompleted)
             {
                 var item = await finalBuffer.TakeAsync(cancel);
-                if (finalBuffer.IsCompleted && item == null)
-                {
-                    yield break;
-                }
+                if (finalBuffer.IsCompleted && item == null) yield break;
                 switch (item.Work)
                 {
                     case null:
@@ -246,19 +242,13 @@ namespace FileProcessor
                         break;
                     case IAsyncEnumerable<TOut> asyncEnum:
                     {
-                        await foreach (var outItem in asyncEnum.WithCancellation(cancel))
-                        {
-                            yield return outItem;
-                        }
+                        await foreach (var outItem in asyncEnum.WithCancellation(cancel)) yield return outItem;
 
                         break;
                     }
                     case IEnumerable<TOut> syncEnum:
                     {
-                        foreach (var outItem in syncEnum)
-                        {
-                            yield return outItem;
-                        }
+                        foreach (var outItem in syncEnum) yield return outItem;
 
                         break;
                     }
@@ -268,42 +258,24 @@ namespace FileProcessor
                             $"{typeof(Task<TOut>).FullName}, {typeof(IAsyncEnumerable<TOut>).FullName}, {typeof(IEnumerable<TOut>).FullName} or {typeof(TOut).FullName}");
                 }
 
-                if (!item.CompletionSource.Task.IsCompleted)
-                {
-                    item.CompletionSource.SetResult(item.Work);
-                }
+                if (!item.CompletionSource.Task.IsCompleted) item.CompletionSource.SetResult(item.Work);
             }
 
-            if (autoDispose)
-            {
-                await Task.WhenAll(this.RunAfterCompletion.Select(i => i()));
-            }
+            if (autoDispose) await Task.WhenAll(this.RunAfterCompletion.Select(i => i()));
         }
 
-        private async Task<TOut> getSingleReturnValue<TOut>(AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer, 
+        private async Task<TOut> getSingleReturnValue<TOut>(
+            AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer,
             CancellationToken cancel, bool autoDispose)
         {
             var enumerable = finalBuffer.GetConsumingEnumerable(cancel);
             var result = enumerable.First();
-            if (!result.CompletionSource.Task.IsCompleted)
-            {
-                result.CompletionSource.SetResult(result.Work);
-            }
+            if (!result.CompletionSource.Task.IsCompleted) result.CompletionSource.SetResult(result.Work);
 
-            var output = (TOut)await result.CompletionSource.Task;
-            if (autoDispose)
-            {
-                await Task.WhenAll(this.RunAfterCompletion.Select(i => i()));
-            }
+            var output = (TOut) await result.CompletionSource.Task;
+            if (autoDispose) await Task.WhenAll(this.RunAfterCompletion.Select(i => i()));
 
             return output;
         }
-
-        public void Dispose()
-        {
-            Task.WaitAll(this.RunAfterCompletion.Select(i => i()).ToArray());
-        }
-
-        
     }
 }

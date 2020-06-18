@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace FileProcessor.Transformers
 {
-    public class DeserializeJsonArrayTransformer<T>:IAsyncEnumerableStep<IFileReference, T>
+    public class DeserializeJsonArrayTransformer<T> : IAsyncEnumerableStep<IFileReference, T>
     {
         private readonly DeserializeJsonArrayTransformerOptions options;
 
@@ -20,21 +17,16 @@ namespace FileProcessor.Transformers
             var fi = await input.GetLocalFileInfo();
             using var streamReader = fi.OpenText();
             var reader = new JsonTextReader(streamReader);
-            var serializer = this.options.SerializerSettings == null 
+            var serializer = this.options.SerializerSettings == null
                 ? new JsonSerializer()
                 : JsonSerializer.Create(this.options.SerializerSettings);
-            await foreach (var item in this.ReadJson(reader, serializer))
-            {
-                yield return item;
-            }
+            await foreach (var item in this.ReadJson(reader, serializer)) yield return item;
         }
+
         protected virtual async IAsyncEnumerable<T> ReadJson(JsonTextReader reader, JsonSerializer serializer)
         {
-            bool eof =false;
-            while (reader.Path != this.options.JsonPath && !eof)
-            {
-                eof = !await reader.ReadAsync();
-            }
+            var eof = false;
+            while (reader.Path != this.options.JsonPath && !eof) eof = !await reader.ReadAsync();
 
             while (!eof)
             {
@@ -43,6 +35,7 @@ namespace FileProcessor.Transformers
                     var obj = serializer.Deserialize<T>(reader);
                     yield return obj;
                 }
+
                 eof = !await reader.ReadAsync();
             }
         }
@@ -50,7 +43,7 @@ namespace FileProcessor.Transformers
 
     public class DeserializeJsonArrayTransformerOptions
     {
-        public string JsonPath { get; set; } = String.Empty;
+        public string JsonPath { get; set; } = string.Empty;
         public JsonSerializerSettings SerializerSettings { get; set; } = null;
     }
 }

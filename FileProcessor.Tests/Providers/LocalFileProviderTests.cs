@@ -18,7 +18,7 @@ namespace FileProcessor.Tests.Providers
             {
                 await File.WriteAllTextAsync(tempFile, foo);
                 var dirPath = Path.GetDirectoryName(tempFile);
-                var result = provider.Execute(new LocalFileProviderOptions { Path = dirPath });
+                var result = provider.Execute(new LocalFileProviderOptions {Path = dirPath});
                 var foundFile = result.SingleOrDefault(l => l.FileReference == tempFile);
 
                 Assert.NotNull(foundFile);
@@ -30,7 +30,6 @@ namespace FileProcessor.Tests.Providers
             {
                 File.Delete(tempFile);
             }
-
         }
     }
 }

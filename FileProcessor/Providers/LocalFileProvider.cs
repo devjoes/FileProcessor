@@ -5,22 +5,25 @@ using System.Threading.Tasks;
 
 namespace FileProcessor.Providers
 {
-    public class LocalFileProvider:IStep<LocalFileProviderOptions, IEnumerable<IFileReference>>
+    public class LocalFileProvider : IStep<LocalFileProviderOptions, IEnumerable<IFileReference>>
     {
         public IEnumerable<IFileReference> Execute(LocalFileProviderOptions input)
         {
             return Directory.GetFiles(input.Path).Select(f => new LocalFile(f));
         }
     }
-    
-    public class LocalFile:IFileReference
+
+    public class LocalFile : IFileReference
     {
         public LocalFile(string path)
         {
             this.FileReference = path;
         }
 
-        public Task<FileInfo> GetLocalFileInfo()=> Task.FromResult(new FileInfo(this.FileReference));
+        public Task<FileInfo> GetLocalFileInfo()
+        {
+            return Task.FromResult(new FileInfo(this.FileReference));
+        }
 
         public string FileReference { get; }
     }

@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using FileProcessor.Transformers;
-using Org.BouncyCastle.Bcpg;
-using Org.BouncyCastle.Bcpg.OpenPgp;
-using Org.BouncyCastle.Security;
 using Xunit;
 
 namespace FileProcessor.Tests.Transformers
@@ -144,22 +138,38 @@ namespace FileProcessor.Tests.Transformers
             "=dKFi\n" +
             "-----END PGP MESSAGE-----\n";
 
-        [Fact]
-        public async Task ExecuteEncryptsData()
+        private async Task<string> generateData(int mbCount)
         {
-            var transformer = new PgpTransformer(new PgpTransformerOptions
+            var tmp = Path.GetTempFileName();
+            await using var str = File.OpenWrite(tmp);
+            var rnd = new Random();
+            for (var i = 0; i < mbCount; i++)
             {
-                PublicKeyText = PublicKey,
-                Mode = PgpTransformerMode.Encrypt
-            });
+                var buf = new byte[1024 * 1024];
+                rnd.NextBytes(buf);
+                await str.WriteAsync(buf);
+            }
 
-            var inStream = new MemoryStream(Encoding.ASCII.GetBytes(PlainText));
-            var result = await transformer.Execute(inStream);
-            await using var str = (await result.GetLocalFileInfo()).OpenRead();
-            using var reader = new StreamReader(str);
-            string output = await reader.ReadToEndAsync();
-            Assert.NotEmpty(output);
+            str.Close();
+            return tmp;
+        }
 
+        [Theory]
+        [InlineData(PrivateKey, null, "foo", true)]
+        [InlineData(null, PublicKey, "foo", false)]
+        [InlineData(PrivateKey, PublicKey, "foo", false)]
+        [InlineData(PrivateKey, null, null, false)]
+        [InlineData(PrivateKey, null, "", false)]
+        [InlineData(PrivateKey, PublicKey, "foo", true)]
+        public void CtorThrowsIfWrongKeyIsUsed(string privateKey, string publicKey, string password, bool encrypt)
+        {
+            Assert.Throws<ArgumentException>(() => new PgpTransformer(new PgpTransformerOptions
+            {
+                PublicKeyText = publicKey,
+                PrivateKeyText = privateKey,
+                Mode = encrypt ? PgpTransformerMode.Encrypt : PgpTransformerMode.Decrypt,
+                Password = password
+            }));
         }
 
 
@@ -177,48 +187,8 @@ namespace FileProcessor.Tests.Transformers
             var result = await transformer.Execute(inStream);
             await using var str = (await result.GetLocalFileInfo()).OpenRead();
             using var reader = new StreamReader(str);
-            string output = await reader.ReadToEndAsync();
+            var output = await reader.ReadToEndAsync();
             Assert.Equal(PlainText, output);
-        }
-
-        [Fact]
-        public async Task ExecuteEncryptsLargeAmountsOfData()
-        {
-            var inputFile = await this.generateData(1);//(1024);
-            var encrypt = new PgpTransformer(new PgpTransformerOptions
-            {
-                PublicKeyText = PublicKey,
-                Mode = PgpTransformerMode.Encrypt
-            });
-
-            await using var input = File.OpenRead(inputFile);
-            var fi = await encrypt.Execute(input);
-            await using var str =(await fi.GetLocalFileInfo()).OpenRead();
-
-            var decrypt = new PgpTransformer(new PgpTransformerOptions
-            {
-                PrivateKeyText = PrivateKey,
-                Password = Password,
-                Mode = PgpTransformerMode.Decrypt
-            });
-
-            var outputFile = await (await decrypt.Execute(str)).GetLocalFileInfo();
-
-            Assert.Equal(new FileInfo(inputFile).Length, outputFile.Length);
-        }
-
-        private async Task<string> generateData(int mbCount){
-            var tmp = Path.GetTempFileName();
-            await using var str = File.OpenWrite(tmp);
-            var rnd = new Random();
-            for (int i = 0; i < mbCount; i++)
-            {
-                var buf = new byte[1024 * 1024];
-                rnd.NextBytes(buf);
-                await str.WriteAsync(buf);
-            }
-            str.Close();
-            return tmp;
         }
 
 
@@ -232,7 +202,7 @@ namespace FileProcessor.Tests.Transformers
             });
 
             var ptInput = new MemoryStream(Encoding.ASCII.GetBytes(PlainText));
-            var fi =  await (await encrypt.Execute(ptInput)).GetLocalFileInfo();
+            var fi = await (await encrypt.Execute(ptInput)).GetLocalFileInfo();
             var strEnc = fi.OpenRead();
 
             var decrypt = new PgpTransformer(new PgpTransformerOptions
@@ -245,26 +215,51 @@ namespace FileProcessor.Tests.Transformers
             var result = await (await decrypt.Execute(strEnc)).GetLocalFileInfo();
             var str = result.OpenRead();
             using var reader = new StreamReader(str);
-            string output = await reader.ReadToEndAsync();
+            var output = await reader.ReadToEndAsync();
             Assert.Equal(PlainText, output);
         }
 
-        [Theory]
-        [InlineData(PrivateKey, null,"foo", true)]
-        [InlineData(null, PublicKey, "foo",false)]
-        [InlineData(PrivateKey, PublicKey, "foo", false)]
-        [InlineData(PrivateKey, null, null, false)]
-        [InlineData(PrivateKey, null, "", false)]
-        [InlineData(PrivateKey, PublicKey, "foo",true)]
-        public void CtorThrowsIfWrongKeyIsUsed(string privateKey, string publicKey, string password, bool encrypt)
+        [Fact]
+        public async Task ExecuteEncryptsData()
         {
-            Assert.Throws<ArgumentException>(() => new PgpTransformer(new PgpTransformerOptions
+            var transformer = new PgpTransformer(new PgpTransformerOptions
             {
-                PublicKeyText = publicKey,
-                PrivateKeyText = privateKey,
-                Mode = encrypt ? PgpTransformerMode.Encrypt : PgpTransformerMode.Decrypt,
-                Password = password
-            }));
+                PublicKeyText = PublicKey,
+                Mode = PgpTransformerMode.Encrypt
+            });
+
+            var inStream = new MemoryStream(Encoding.ASCII.GetBytes(PlainText));
+            var result = await transformer.Execute(inStream);
+            await using var str = (await result.GetLocalFileInfo()).OpenRead();
+            using var reader = new StreamReader(str);
+            var output = await reader.ReadToEndAsync();
+            Assert.NotEmpty(output);
+        }
+
+        [Fact]
+        public async Task ExecuteEncryptsLargeAmountsOfData()
+        {
+            var inputFile = await this.generateData(1); //(1024);
+            var encrypt = new PgpTransformer(new PgpTransformerOptions
+            {
+                PublicKeyText = PublicKey,
+                Mode = PgpTransformerMode.Encrypt
+            });
+
+            await using var input = File.OpenRead(inputFile);
+            var fi = await encrypt.Execute(input);
+            await using var str = (await fi.GetLocalFileInfo()).OpenRead();
+
+            var decrypt = new PgpTransformer(new PgpTransformerOptions
+            {
+                PrivateKeyText = PrivateKey,
+                Password = Password,
+                Mode = PgpTransformerMode.Decrypt
+            });
+
+            var outputFile = await (await decrypt.Execute(str)).GetLocalFileInfo();
+
+            Assert.Equal(new FileInfo(inputFile).Length, outputFile.Length);
         }
 
         //private static PgpPublicKey ReadPublicKey(Stream inputStream)
@@ -334,8 +329,8 @@ namespace FileProcessor.Tests.Transformers
 
         public static Stream GetStream(string stringData)
         {
-            MemoryStream stream = new MemoryStream();
-            StreamWriter writer = new StreamWriter(stream);
+            var stream = new MemoryStream();
+            var writer = new StreamWriter(stream);
             writer.Write(stringData);
             writer.Flush();
             stream.Position = 0;
@@ -345,16 +340,17 @@ namespace FileProcessor.Tests.Transformers
         public static string GetString(Stream inputStream)
         {
             string output;
-            using (StreamReader reader = new StreamReader(inputStream))
+            using (var reader = new StreamReader(inputStream))
             {
                 output = reader.ReadToEnd();
             }
+
             return output;
         }
 
         public static void WriteStream(Stream inputStream, ref byte[] dataBytes)
         {
-            using (Stream outputStream = inputStream)
+            using (var outputStream = inputStream)
             {
                 outputStream.Write(dataBytes, 0, dataBytes.Length);
             }

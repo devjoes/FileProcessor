@@ -1,7 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Concurrent;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace FileProcessor
 {
