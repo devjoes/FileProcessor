@@ -18,7 +18,7 @@ namespace FileProcessor.Tests
         [InlineData(true, 5, 1, 1, 3)]
         [InlineData(false, 5, 2, 2, 4)]
         [InlineData(true, 5, 2, 2, 4)]
-        [InlineData(true, 5, 3, 5, 6)]
+        [InlineData(true, 5, 3, 4, 6)]
         public async Task ParallelExecutionTest(bool sync, int parallelism, int stepCount, int minSecs, int maxSecs)
         {
             var asyncStep = new Func<int, Task<int>>(async i =>
