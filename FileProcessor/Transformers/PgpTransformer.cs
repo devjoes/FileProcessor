@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using FileProcessor.Providers;
 using Org.BouncyCastle.Bcpg;
 using Org.BouncyCastle.Bcpg.OpenPgp;
 using Org.BouncyCastle.Security;
@@ -10,7 +11,7 @@ using Org.BouncyCastle.Utilities.IO;
 
 namespace FileProcessor.Transformers
 {
-    public class PgpTransformer : IAsyncStep<Stream, Stream>, IDisposable
+    public class PgpTransformer : IAsyncStep<Stream, IFileReference>, IDisposable
     {
         private readonly PgpTransformerOptions options;
         private string tmp;
@@ -24,14 +25,14 @@ namespace FileProcessor.Transformers
             this.options = options;
         }
 
-        public async Task<Stream> Execute(Stream input)
+        public async Task<IFileReference> Execute(Stream input)
         {
             this.tmp = Path.GetTempFileName();
             await using (var output = File.OpenWrite(this.tmp))
             {
                 if (this.options.Mode == PgpTransformerMode.Encrypt)
                 {
-                    PgpPublicKey key = getKey(options.PublicKey);
+                    PgpPublicKey key = getKey(this.options.PublicKey);
                     await encrypt(key, input, output, this.options.Armor, this.options.TestIntegrity);
                 }
                 if (this.options.Mode == PgpTransformerMode.Decrypt)
@@ -41,7 +42,7 @@ namespace FileProcessor.Transformers
                 }
             }
 
-            return File.OpenRead(this.tmp);
+            return new LocalFile(this.tmp);
         }
 
         private static async Task encrypt(PgpPublicKey key, Stream inputStream, Stream outputStream, bool armor, bool integrityCheck)

@@ -18,7 +18,7 @@ namespace FileProcessor.Tests.Transformers
         {
             const int count = 10;
             var transformer = new DeserializeJsonArrayTransformer<Test>(new DeserializeJsonArrayTransformerOptions());
-            string path = await generateData(count);
+            string path = await this.generateData(count);
 
             var output = transformer.Execute(new LocalFile(path));
             var results = new List<Test>();
@@ -42,10 +42,11 @@ namespace FileProcessor.Tests.Transformers
         {
             const int count = 10;
             var transformer = new DeserializeJsonArrayTransformer<Test>(new DeserializeJsonArrayTransformerOptions { JsonPath = "bar[0].baz" });
-            string path = await generateData(count, "{\"foo\":1, \"bar\": [ {\"baz\":[", "]} , 1,2,3], \"blah\": {\"blah\" : \"blah\"}}");
+            string path = await this.generateData(count, "{\"foo\":1, \"bar\": [ {\"baz\":[", "]} , 1,2,3], \"blah\": {\"blah\" : \"blah\"}}");
 
             var output = transformer.Execute(new LocalFile(path));
             var results = new List<Test>();
+            
             await foreach (var item in output)
             {
                 results.Add(item);
@@ -66,8 +67,8 @@ namespace FileProcessor.Tests.Transformers
         {
             const int count = 10;
             JsonSerializerSettings settings = new JsonSerializerSettings { DateFormatString = "dd/yyyy/MM" };
-            var transformer = new DeserializeJsonArrayTransformer<Test>(new DeserializeJsonArrayTransformerOptions { SerializerSettings = settings});
-            string path = await generateData(count, "[","]", settings);
+            var transformer = new DeserializeJsonArrayTransformer<Test>(new DeserializeJsonArrayTransformerOptions { SerializerSettings = settings });
+            string path = await this.generateData(count, "[", "]", settings);
 
             var output = transformer.Execute(new LocalFile(path));
             var results = new List<Test>();
@@ -98,7 +99,7 @@ namespace FileProcessor.Tests.Transformers
                     Id = i,
                     Text = Guid.NewGuid().ToString(),
                     When = DateTime.UtcNow,
-                    Children = new []{new Test{Text = Guid.NewGuid().ToString()} }
+                    Children = new[] { new Test { Text = Guid.NewGuid().ToString() } }
                 };
                 await writer.WriteAsync(JsonConvert.SerializeObject(data, settings ?? new JsonSerializerSettings()));
                 if (i < count)

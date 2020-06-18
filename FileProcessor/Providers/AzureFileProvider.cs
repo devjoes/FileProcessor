@@ -20,18 +20,9 @@ namespace FileProcessor.Providers
         public AzureFileProvider(string connectionString, bool authenticateWithMsi = false, bool downloadFilesOnceFound = true)
         {
             this.downloadFilesOnceFound = downloadFilesOnceFound;
-            CloudStorageAccount storageAccount;
-            if (authenticateWithMsi)
-            {
-                string accessToken = getMsiToken("https://storage.azure.com/");
-                TokenCredential tokenCredential = new TokenCredential(accessToken);
-                StorageCredentials storageCredentials = new StorageCredentials(tokenCredential);
-                storageAccount = new CloudStorageAccount(storageCredentials, true);
-            }
-            else
-            {
-                storageAccount = CloudStorageAccount.Parse(connectionString);
-            }
+            var storageAccount = authenticateWithMsi 
+                ? new CloudStorageAccount(new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/"))), true) 
+                : CloudStorageAccount.Parse(connectionString);
 
             this.client = storageAccount.CreateCloudFileClient();
         }
@@ -194,7 +185,7 @@ namespace FileProcessor.Providers
         {
             if (this.tmp != null)
             {
-                //todo: call dispose
+                // todo: call dispose
                 File.Delete(this.tmp);
             }
         }

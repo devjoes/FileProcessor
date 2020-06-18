@@ -18,4 +18,10 @@ namespace FileProcessor
     {
         IAsyncEnumerable<TOut> Execute(TIn input);
     }
+
+    public class StepOptions
+    {
+        public int Parallelism { get; set; } = 1;
+        public int BufferCapacity { get; set; } = 10;
+    }
 }

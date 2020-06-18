@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Moq;
 using Xunit;
@@ -17,7 +19,7 @@ namespace FileProcessor.Tests
             var builder = new Builder();
             builder.AddStep<string, string>(i => new String(i.Reverse().ToArray()));
             Assert.Collection(builder.Steps,
-                d => Assert.Equal("cba", asyncEnumerableToSingle(d("abc"))));
+                d => Assert.Equal("cba", this.asyncEnumerableToSingle(d("abc"))));
         }
 
         [Fact]
@@ -26,25 +28,16 @@ namespace FileProcessor.Tests
             var builder = new Builder();
             builder.AddStep(new TestStep());
             Assert.Collection(builder.Steps,
-                d => Assert.Equal("cba", asyncEnumerableToSingle(d("abc"))));
+                d => Assert.Equal("cba", this.asyncEnumerableToSingle(d("abc"))));
         }
-
-        private T asyncEnumerableToSingle<T>(IAsyncEnumerable<T> asyncEnumerable)
-        {
-            var enumerator = asyncEnumerable.GetAsyncEnumerator();
-            Assert.True(enumerator.MoveNextAsync().GetAwaiter().GetResult());
-            var single = enumerator.Current;
-            Assert.False(enumerator.MoveNextAsync().GetAwaiter().GetResult());
-            return single;
-        }
-
+        
         [Fact]
         public void AddStepAddsAsyncSteps()
         {
             var builder = new Builder();
             builder.AddStep(new TestAsyncStep());
             Assert.Collection(builder.Steps,
-                d => Assert.Equal("cba", asyncEnumerableToSingle(d("abc"))));
+                d => Assert.Equal("cba", this.asyncEnumerableToSingle(d("abc"))));
         }
 
         [Fact]
@@ -77,7 +70,7 @@ namespace FileProcessor.Tests
             var fluentProcessor = builder.AddStep<string, string>(mockReverseStep.Object)
                 .AddStep(mockCountStep.Object)
                 .Returns<Tuple<int, string>>();
-            var processor = builder.Build<String, Tuple<int, string>>();
+            var processor = builder.Build<String, Tuple<int, string>>(CancellationToken.None, true);
 
             var result = await processor(abc);
             Assert.Equal(new Tuple<int, string>(3, cba), result);
@@ -86,8 +79,7 @@ namespace FileProcessor.Tests
             mockReverseStep.Verify(s => s(abc), Times.Exactly(2));
             mockCountStep.Verify(s => s(cba), Times.Exactly(2));
         }
-
-
+        
         [Fact]
         public async Task ReturnsEnumerableReturnsIndividualResults()
         {
@@ -95,7 +87,9 @@ namespace FileProcessor.Tests
             var rnd = new Random();
             var delays = word.Select(_ => rnd.Next(300, 3000)).ToArray();
             var delaysQueue = new Queue<int>(delays);
-            var processor = new Builder().AddStep<char, char>(Char.ToUpper)
+            var processor = new Builder()
+                .AcceptCollection<char>()
+                .AddStep<char>(Char.ToUpper)
                 .AddStep(async i =>
                 {
                     var msDelay = delaysQueue.Dequeue();
@@ -135,7 +129,8 @@ namespace FileProcessor.Tests
             var step = new TestAsyncEnumerableStep(delaysQueue);
             int firstCounter = 0, lastCounter = 0;
             var processor = new Builder()
-                .AddStep<char, char>(i =>
+                .AcceptCollection<char>()
+                .AddStep<char>(i =>
                  {
                      firstCounter++;
                      return i;
@@ -198,67 +193,25 @@ namespace FileProcessor.Tests
             Assert.Equal(1, result.First());
             Assert.Equal(1, counter);
         }
-
-        [Fact]
-        public async Task HandlesErrors()
+        
+        private T asyncEnumerableToSingle<T>(IAsyncEnumerable<T> asyncEnumerable)
         {
-            //TODO: Dont forget dns zone
-            var process = new Builder().AddStep<int, IEnumerable<int>>(i =>
-            {
-                if (i == 1)
-                {
-                    throw new AccessViolationException("foo");
-                }
-
-                return new []{i};
-            }).Returns<IEnumerable<int>>();
-
-            var ex = await Assert.ThrowsAsync<AccessViolationException>(async () => await process(1));
-            Assert.Equal("foo", ex.Message);
+            var enumerator = asyncEnumerable.GetAsyncEnumerator();
+            Assert.True(enumerator.MoveNextAsync().GetAwaiter().GetResult());
+            var single = enumerator.Current;
+            Assert.False(enumerator.MoveNextAsync().GetAwaiter().GetResult());
+            return single;
         }
-
-        [Fact]
-        public async Task ComplexTest()
-        {
-            var process = new Builder().AddStep<int, IEnumerable<int>>(i
-                    => Enumerable.Range(2, (int)Math.Floor(i / 2d)).Where(f => i % f == 0))
-                .AddStep<string>(i => string.Join(',', i.Select(n => n.ToString())))
-                .AddStep(new TestAsyncStep())
-                .AddStep(i => i.Length == 1 ? new[] { i } : new[] { i.Remove(i.Length / 2), i.Substring(i.Length / 2) })
-                .Returns<string[]>();
-
-            var result = await process(48);
-
-            Assert.Equal("8,6,4,3,2", result.Last());
-        }
-
-
-        //[Theory]
-        //[InlineData(true)]
-        //[InlineData(false)]
-        //public async Task DisposeTest(bool autoDispose)
-        //{
-        //    var step = new TestStep();
-        //    var asyncStep = new TestAsyncStep();
-        //    var process = new Builder()
-        //        .AddStep(step)
-        //        .AddStep(asyncStep)
-        //        .Returns<string>(autoDispose);
-
-        //    Assert.False(step.Disposed);
-        //    Assert.False(asyncStep.Disposed);
-        //    var result = await process("abc");
-        //    Assert.True(step.Disposed);
-        //    Assert.True(asyncStep.Disposed);
-
-        //    Assert.Equal("abc", result);
-        //}
     }
 
     class TestStep : IStep<string, string>, IDisposable
     {
         public string Execute(string input)
         {
+            if (this.Disposed)
+            {
+                throw new ObjectDisposedException(null);
+            }
             return new string(input.Reverse().ToArray());
         }
 
@@ -273,6 +226,10 @@ namespace FileProcessor.Tests
     {
         public async Task<string> Execute(string input)
         {
+            if (this.Disposed)
+            {
+                throw new ObjectDisposedException(null);
+            }
             return await Task.FromResult(new string(input.Reverse().ToArray()));
         }
 
@@ -285,7 +242,7 @@ namespace FileProcessor.Tests
         public bool Disposed { get; set; }
     }
 
-    class TestAsyncEnumerableStep : IAsyncEnumerableStep<char, char>
+    class TestAsyncEnumerableStep : IAsyncEnumerableStep<char, char>, IDisposable
     {
         private readonly Queue<int> delaysQueue;
 
@@ -297,12 +254,26 @@ namespace FileProcessor.Tests
         {
             await Task.Delay(this.delaysQueue.Dequeue());
             this.ReturnedValues++;
+            if (this.Disposed)
+            {
+                throw new ObjectDisposedException(null);
+            }
             yield return char.ToLower(input);
             this.ReturnedValues++;
+            if (this.Disposed)
+            {
+                throw new ObjectDisposedException(null);
+            }
             yield return char.ToUpper(input);
         }
 
         public int ReturnedValues { get; set; }
 
+        public void Dispose()
+        {
+            this.Disposed = true;
+        }
+
+        public bool Disposed { get; set; }
     }
 }
