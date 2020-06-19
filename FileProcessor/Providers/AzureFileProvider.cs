@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Authentication;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Auth;
@@ -13,10 +14,11 @@ using Newtonsoft.Json;
 
 namespace FileProcessor.Providers
 {
-    public class AzureFileProvider : IAsyncEnumerableStep<AzureFileProviderOptions, IFileReference>
+    public class AzureFileProvider : IAsyncEnumerableStep<AzureFileProviderOptions, IFileReference>, IAsyncDisposable
     {
         private readonly CloudFileClient client;
         private readonly bool downloadFilesOnceFound;
+        private readonly CompositeDisposable toDispose;
 
         public AzureFileProvider(string connectionString, bool authenticateWithMsi = false,
             bool downloadFilesOnceFound = true)
@@ -27,11 +29,13 @@ namespace FileProcessor.Providers
                     new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/"))), true)
                 : CloudStorageAccount.Parse(connectionString);
 
+            this.toDispose = new CompositeDisposable();
             this.client = storageAccount.CreateCloudFileClient();
         }
 
         public AzureFileProvider(CloudFileClient client)
         {
+            this.toDispose = new CompositeDisposable();
             this.client = client;
         }
 
@@ -42,7 +46,10 @@ namespace FileProcessor.Providers
                 var share = this.client.GetShareReference(shareName);
                 var root = share.GetRootDirectoryReference();
                 await foreach (var file in this.processDir(root,
-                    input.SharesToPaths[shareName].OrderBy(p => p).ToArray())) yield return file;
+                    input.SharesToPaths[shareName].OrderBy(p => p).ToArray()))
+                {
+                    yield return file;
+                }
             }
         }
 
@@ -95,7 +102,12 @@ namespace FileProcessor.Providers
                 //{
                 var rx = new Regex(Regex.Escape(pattern).Replace("\\*", ".*"));
                 foreach (var file in files.Where(f => rx.IsMatch(f.Name)))
-                    yield return await AzureFile.FromCloudFile(file, this.downloadFilesOnceFound);
+                {
+                    var azFile = await AzureFile.FromCloudFile(file, this.downloadFilesOnceFound);
+                    this.toDispose.Add(azFile);
+                    yield return azFile;
+                }
+
                 //TODO: This would be more efficient for single files
                 //}
                 //else
@@ -107,14 +119,14 @@ namespace FileProcessor.Providers
 
         private static string getMsiToken(string resourceId)
         {
-            var request = (HttpWebRequest) WebRequest.Create(
+            var request = (HttpWebRequest)WebRequest.Create(
                 "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" + resourceId);
             request.Headers["Metadata"] = "true";
             request.Method = "GET";
 
             try
             {
-                var response = (HttpWebResponse) request.GetResponse();
+                var response = (HttpWebResponse)request.GetResponse();
                 using var streamResponse = new StreamReader(response.GetResponseStream());
                 var stringResponse = streamResponse.ReadToEnd();
                 var list = JsonConvert.DeserializeObject<Dictionary<string, string>>(stringResponse);
@@ -126,6 +138,11 @@ namespace FileProcessor.Providers
                     $"{e.Message}\n\n{(e.InnerException != null ? e.InnerException.Message : "Acquire token failed")}";
                 throw new AuthenticationException(errorText, e.InnerException);
             }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await this.toDispose.DisposeAsync();
         }
     }
 
@@ -141,9 +158,21 @@ namespace FileProcessor.Providers
 
         public void Dispose()
         {
-            if (this.tmp != null)
-                // todo: call dispose
-                File.Delete(this.tmp);
+            if (this.tmp == null)
+            {
+                return;
+            }
+
+            string toDel = this.tmp;
+            try
+            {
+                File.Delete(toDel);
+                this.tmp = null;
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         public async Task<FileInfo> GetLocalFileInfo()

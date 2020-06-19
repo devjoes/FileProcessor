@@ -41,22 +41,14 @@ namespace FileProcessor
                 try
                 {
                     if (consumed.CompletionSource.Task.IsCompleted)
-                        next.Add(new WorkWrapper<object>
-                        {
-                            Work = default,
-                            CompletionSource = consumed.CompletionSource
-                        }, this.cancel);
+                        next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
                     else
                         await this.passWorkToNextStep(next, step(consumed.Work), consumed);
                 }
                 catch (Exception ex)
                 {
                     consumed.CompletionSource.SetException(ex);
-                    next.Add(new WorkWrapper<object>
-                    {
-                        Work = default,
-                        CompletionSource = consumed.CompletionSource
-                    }, this.cancel);
+                    next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
                 }
 
             next.CompleteAdding();
@@ -79,9 +71,8 @@ namespace FileProcessor
                 finished |= !await enumerator.MoveNextAsync();
                 if (finished && first)
                 {
-                    next.Add(new WorkWrapper<object>
+                    next.Add(new WorkWrapper<object>(result, consumed)
                     {
-                        Work = result,
                         CompletionSource = consumed.CompletionSource
                     }, this.cancel);
                 }
@@ -89,9 +80,8 @@ namespace FileProcessor
                 {
                     var individualCompletionSource = new TaskCompletionSource<object>();
                     subTasks.Add(individualCompletionSource.Task);
-                    next.Add(new WorkWrapper<object>
+                    next.Add(new WorkWrapper<object>(result, consumed)
                     {
-                        Work = result,
                         CompletionSource = individualCompletionSource
                     }, this.cancel);
                 }
@@ -122,6 +112,12 @@ namespace FileProcessor
             }
 
             public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(Func<T, Task<TOut>> step, StepOptions options = null)
+            {
+                this.builder.AddStep(step, options);
+                return new FluentBuilder<TFirstIn, TOut>(this.builder);
+            }
+
+            public FluentBuilder<TFirstIn, TOut> AddStep<TOut>(IStep<T, TOut> step, StepOptions options = null)
             {
                 this.builder.AddStep(step, options);
                 return new FluentBuilder<TFirstIn, TOut>(this.builder);

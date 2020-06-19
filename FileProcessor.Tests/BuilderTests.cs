@@ -79,7 +79,7 @@ namespace FileProcessor.Tests
                 .Returns<Tuple<int, string>>();
             var processor = builder.Build<string, Tuple<int, string>>(CancellationToken.None, true);
 
-            var result = await processor(abc);
+            var result =(Tuple<int, string>) await processor(abc);
             Assert.Equal(new Tuple<int, string>(3, cba), result);
             var fluentResult = await fluentProcessor(abc);
             Assert.Equal(new Tuple<int, string>(3, cba), fluentResult);
@@ -208,6 +208,24 @@ namespace FileProcessor.Tests
             if (this.Disposed) throw new ObjectDisposedException(null);
             return new string(input.Reverse().ToArray());
         }
+
+    }
+
+    internal class TestStepWithMetaData : IStep<string, WithMetaData<string>>, IDisposable
+    {
+        public bool Disposed { get; set; }
+
+        public void Dispose()
+        {
+            this.Disposed = true;
+        }
+
+        public WithMetaData<string> Execute(string input)
+        {
+            if (this.Disposed) throw new ObjectDisposedException(null);
+            return new WithMetaData<string>(new string(input.Reverse().ToArray()), new Dictionary<string, string> { { "foo", "foo" } });
+        }
+
     }
 
     internal class TestAsyncStep : IAsyncStep<string, string>, IAsyncDisposable
@@ -224,6 +242,25 @@ namespace FileProcessor.Tests
         {
             if (this.Disposed) throw new ObjectDisposedException(null);
             return await Task.FromResult(new string(input.Reverse().ToArray()));
+        }
+    }
+
+
+    internal class TestAsyncStepWithMetaData : IAsyncStep<string, WithMetaData<string>>, IAsyncDisposable
+    {
+        public bool Disposed { get; set; }
+
+        public ValueTask DisposeAsync()
+        {
+            this.Disposed = true;
+            return new ValueTask();
+        }
+
+        public async Task<WithMetaData<string>> Execute(string input)
+        {
+            if (this.Disposed) throw new ObjectDisposedException(null);
+            return await Task.FromResult(new WithMetaData<string>(new string(input.Reverse().ToArray()),
+                new Dictionary<string, string> { { "bar", "bar" } }));
         }
     }
 
@@ -255,5 +292,41 @@ namespace FileProcessor.Tests
         {
             this.Disposed = true;
         }
+
     }
+
+
+    internal class TestAsyncEnumerableStepWithMetaData : IAsyncEnumerableStep<char, WithMetaData<char>>, IDisposable
+    {
+        private readonly Queue<int> delaysQueue;
+
+        public TestAsyncEnumerableStepWithMetaData(Queue<int> delaysQueue)
+        {
+            this.delaysQueue = delaysQueue;
+        }
+
+        public int ReturnedValues { get; set; }
+
+        public bool Disposed { get; set; }
+
+        public async IAsyncEnumerable<WithMetaData<char>> Execute(char input)
+        {
+            await Task.Delay(this.delaysQueue.Dequeue());
+            this.ReturnedValues++;
+            if (this.Disposed) throw new ObjectDisposedException(null);
+            yield return new WithMetaData<char>(char.ToLower(input),
+                new Dictionary<string, string> { { "baz", "baz" } });
+            this.ReturnedValues++;
+            if (this.Disposed) throw new ObjectDisposedException(null);
+            yield return new WithMetaData<char>(char.ToUpper(input),
+                new Dictionary<string, string> { { "baz", "baz" } });
+        }
+
+        public void Dispose()
+        {
+            this.Disposed = true;
+        }
+
+    }
+
 }

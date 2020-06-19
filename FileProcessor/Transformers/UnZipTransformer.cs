@@ -9,6 +9,12 @@ namespace FileProcessor.Transformers
     public class UnZipTransformer : IAsyncEnumerableStep<IFileReference, IFileReference>, IDisposable
     {
         private string tmpDir;
+        private CompositeDisposable toDispose;
+
+        public UnZipTransformer()
+        {
+            this.toDispose = new CompositeDisposable();
+        }
 
         public async IAsyncEnumerable<IFileReference> Execute(IFileReference input)
         {
@@ -23,13 +29,26 @@ namespace FileProcessor.Transformers
                 await using var file = File.Open(path, FileMode.Create, FileAccess.Write);
                 await str.CopyToAsync(file);
                 file.Close();
-                yield return new LocalFile(path);
+                var localFile = new LocalFile(path);
+                this.toDispose.Add(localFile);
+                yield return localFile;
             }
         }
 
         public void Dispose()
         {
-            if (this.tmpDir != null) Directory.Delete(this.tmpDir, true);
+            this.toDispose.Dispose();
+            if (this.tmpDir != null)
+            {
+                try
+                {
+                    Directory.Delete(this.tmpDir, true);
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
         }
     }
 }

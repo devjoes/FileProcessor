@@ -14,9 +14,11 @@ namespace FileProcessor.Transformers
     {
         private readonly PgpTransformerOptions options;
         private string tmp;
+        private CompositeDisposable toDispose;
 
         public PgpTransformer(PgpTransformerOptions options)
         {
+            this.toDispose = new CompositeDisposable();
             if (!options.IsValid(out var message)) throw new ArgumentException(message, nameof(options));
             this.options = options;
         }
@@ -39,20 +41,32 @@ namespace FileProcessor.Transformers
                 }
             }
 
-            return new LocalFile(this.tmp);
+            var file = new LocalFile(this.tmp);
+            this.toDispose.Add(file);
+            return file;
         }
 
         public void Dispose()
         {
+            this.toDispose.Dispose();
             if (this.tmp != null)
-                //todo: secure erase?
-                File.Delete(this.tmp);
+            {
+                try
+                {
+                    //todo: secure erase? Everything is enc at rest in the cloud but still? Does secure erase even work now with SSDs?
+                    File.Delete(this.tmp);
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
         }
 
         private static async Task encrypt(PgpPublicKey key, Stream inputStream, Stream outputStream, bool armor,
             bool integrityCheck)
         {
-            var tmpCompressed = Path.GetTempFileName(); //todo: delete
+            var tmpCompressed = Path.GetTempFileName();
             try
             {
                 if (armor) outputStream = new ArmoredOutputStream(outputStream);
