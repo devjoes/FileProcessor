@@ -10,7 +10,7 @@ using Org.BouncyCastle.Utilities.IO;
 
 namespace FileProcessor.Transformers
 {
-    public class PgpTransformer : IAsyncStep<Stream, IFileReference>, IDisposable
+    public class PgpTransformer : IAsyncStep<IFileReference, IFileReference>, IDisposable
     {
         private readonly PgpTransformerOptions options;
         private string tmp;
@@ -23,25 +23,37 @@ namespace FileProcessor.Transformers
             this.options = options;
         }
 
-        public async Task<IFileReference> Execute(Stream input)
+        public async Task<IFileReference> Execute(IFileReference inputFile)
         {
             this.tmp = Path.GetTempFileName();
+            var inputFi = await inputFile.GetLocalFileInfo();
+            await using var input = inputFi.OpenRead();
+            string fileName = inputFile.FileReference;
+            if (fileName.Contains(Path.PathSeparator))
+            {
+                fileName = Path.GetFileName(fileName);
+            }
+
+            fileName= fileName.Replace(".pgp", string.Empty).Replace(".enc", string.Empty);
+            var file = new LocalFile(this.tmp);
+
             await using (var output = File.OpenWrite(this.tmp))
             {
                 if (this.options.Mode == PgpTransformerMode.Encrypt)
                 {
                     var key = getKey(this.options.PublicKey);
-                    await encrypt(key, input, output, this.options.Armor, this.options.TestIntegrity);
+                    await encrypt(key, input, output, this.options.Armor, this.options.TestIntegrity, fileName);
+                    file.FileReference = fileName + ".pgp";
                 }
 
                 if (this.options.Mode == PgpTransformerMode.Decrypt)
                 {
                     await using var key = new MemoryStream(this.options.PrivateKey);
                     await decrypt(input, output, key, this.options.Password, this.options.TestIntegrity);
+                    file.FileReference = fileName;
                 }
             }
 
-            var file = new LocalFile(this.tmp);
             this.toDispose.Add(file);
             return file;
         }
@@ -64,7 +76,7 @@ namespace FileProcessor.Transformers
         }
 
         private static async Task encrypt(PgpPublicKey key, Stream inputStream, Stream outputStream, bool armor,
-            bool integrityCheck)
+            bool integrityCheck, string fileName)
         {
             var tmpCompressed = Path.GetTempFileName();
             try
@@ -76,7 +88,8 @@ namespace FileProcessor.Transformers
                 var dataCompressor = new PgpCompressedDataGenerator(CompressionAlgorithmTag.Zip);
                 var compressor = dataCompressor.Open(compressed);
                 var lData = new PgpLiteralDataGenerator();
-                await using var compressorInput = lData.Open(compressor, PgpLiteralData.Binary, "encrypted_data.dat",
+                await using var compressorInput = lData.Open(compressor, PgpLiteralData.Binary,
+                    fileName,
                     inputStream.Length, DateTime.UtcNow);
                 await inputStream.CopyToAsync(compressorInput);
                 compressorInput.Close();
@@ -99,8 +112,7 @@ namespace FileProcessor.Transformers
             }
         }
 
-        private static async Task decrypt(Stream input, Stream output, Stream key, string password,
-            bool testIntegrity = true)
+        private static async Task decrypt(Stream input, Stream output, Stream key, string password,bool testIntegrity = true)
         {
             input = PgpUtilities.GetDecoderStream(input);
             var pgpF = new PgpObjectFactory(input);
@@ -128,7 +140,6 @@ namespace FileProcessor.Transformers
             }
 
             if (sKey == null) throw new ArgumentException("secret key for message not found.");
-
 
             var clear = pbe.GetDataStream(sKey);
 

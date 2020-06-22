@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using FileProcessor.Providers;
 using FileProcessor.Transformers;
 using Xunit;
 
@@ -183,8 +184,9 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Decrypt
             });
 
-            var inStream = new MemoryStream(Encoding.ASCII.GetBytes(CipherText));
-            var result = await transformer.Execute(inStream);
+            var inFile = Path.GetTempFileName();
+            await File.WriteAllTextAsync(inFile,CipherText);
+            var result = await transformer.Execute(new LocalFile(inFile));
             await using var str = (await result.GetLocalFileInfo()).OpenRead();
             using var reader = new StreamReader(str);
             var output = await reader.ReadToEndAsync();
@@ -201,10 +203,10 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Encrypt
             });
 
-            var ptInput = new MemoryStream(Encoding.ASCII.GetBytes(PlainText));
-            var fi = await (await encrypt.Execute(ptInput)).GetLocalFileInfo();
-            var strEnc = fi.OpenRead();
-
+            var inFile = Path.GetTempFileName();
+            await File.WriteAllTextAsync(inFile, PlainText);
+            var encFile = await encrypt.Execute(new LocalFile(inFile));
+            
             var decrypt = new PgpTransformer(new PgpTransformerOptions
             {
                 PrivateKeyText = PrivateKey,
@@ -212,7 +214,7 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Decrypt
             });
 
-            var result = await (await decrypt.Execute(strEnc)).GetLocalFileInfo();
+            var result = await (await decrypt.Execute(encFile)).GetLocalFileInfo();
             var str = result.OpenRead();
             using var reader = new StreamReader(str);
             var output = await reader.ReadToEndAsync();
@@ -228,8 +230,9 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Encrypt
             });
 
-            var inStream = new MemoryStream(Encoding.ASCII.GetBytes(PlainText));
-            var result = await transformer.Execute(inStream);
+            var inFile = Path.GetTempFileName();
+            await File.WriteAllTextAsync(inFile, PlainText);
+            var result = await transformer.Execute(new LocalFile(inFile));
             await using var str = (await result.GetLocalFileInfo()).OpenRead();
             using var reader = new StreamReader(str);
             var output = await reader.ReadToEndAsync();
@@ -246,9 +249,7 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Encrypt
             });
 
-            await using var input = File.OpenRead(inputFile);
-            var fi = await encrypt.Execute(input);
-            await using var str = (await fi.GetLocalFileInfo()).OpenRead();
+            var encFile = await encrypt.Execute(new LocalFile(inputFile));
 
             var decrypt = new PgpTransformer(new PgpTransformerOptions
             {
@@ -257,7 +258,7 @@ namespace FileProcessor.Tests.Transformers
                 Mode = PgpTransformerMode.Decrypt
             });
 
-            var outputFile = await (await decrypt.Execute(str)).GetLocalFileInfo();
+            var outputFile = await (await decrypt.Execute(encFile)).GetLocalFileInfo();
 
             Assert.Equal(new FileInfo(inputFile).Length, outputFile.Length);
         }

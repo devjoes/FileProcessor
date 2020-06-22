@@ -17,30 +17,32 @@ namespace FileProcessor.Providers
     public class LocalFile : IFileReference, IDisposable
     {
         private readonly bool deleteOnDispose;
+        private string path;
 
         public LocalFile(string path, bool deleteOnDispose = true)
         {
             this.deleteOnDispose = deleteOnDispose;
+            this.path = path;
             this.FileReference = path;
         }
 
         public Task<FileInfo> GetLocalFileInfo()
         {
-            return Task.FromResult(new FileInfo(this.FileReference));
+            return Task.FromResult(new FileInfo(this.path));
         }
 
-        public string FileReference { get; private set; }
+        public string FileReference { get; set; }
 
         public void Dispose()
         {
-            if (this.FileReference == null || !this.deleteOnDispose)
+            if (this.path == null || !this.deleteOnDispose)
                 return;
 
-            var toDelete = this.FileReference;
+            var toDelete = this.path;
             try
             {
                 File.Delete(toDelete);
-                this.FileReference = null;
+                this.path = null;
             }
             catch
             {

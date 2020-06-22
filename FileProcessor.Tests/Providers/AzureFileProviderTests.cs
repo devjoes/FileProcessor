@@ -1,4 +1,6 @@
 ﻿using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using FileProcessor.Providers;
 using Xunit;
@@ -154,6 +156,8 @@ namespace FileProcessor.Tests.Providers
             Assert.Single(files);
             Assert.Collection(files, pair => Assert.Equal($"{MockCloudFileClient.Domain}/{share}{path}", pair.Key));
             Assert.Collection(files, pair => Assert.Equal(foo, pair.Value));
+            await processor.DisposeAsync();
+            Assert.False(File.Exists(files.Keys.Single()));
         }
     }
 }
