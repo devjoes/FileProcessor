@@ -9,14 +9,14 @@ namespace FileProcessor.Transformers
     public class UnZipTransformer : IAsyncEnumerableStep<IFileReference, IFileReference>, IDisposable
     {
         private string tmpDir;
-        private CompositeDisposable toDispose;
+        private readonly CompositeDisposable toDispose;
 
         public UnZipTransformer()
         {
             this.toDispose = new CompositeDisposable();
         }
 
-        public async IAsyncEnumerable<IFileReference> Execute(IFileReference input)
+        public virtual async IAsyncEnumerable<IFileReference> Execute(IFileReference input)
         {
             var zipFi = await input.GetLocalFileInfo();
             using var zip = ZipFile.OpenRead(zipFi.FullName);
@@ -35,7 +35,7 @@ namespace FileProcessor.Transformers
             }
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             this.toDispose.Dispose();
             if (this.tmpDir != null)

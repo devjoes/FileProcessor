@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FileProcessor.Providers;
+using FileProcessor.Transformers;
 using Xunit;
 
 namespace FileProcessor.Tests.Providers
@@ -160,4 +161,5 @@ namespace FileProcessor.Tests.Providers
             Assert.False(File.Exists(files.Keys.Single()));
         }
     }
+
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace FileProcessor.Transformers
@@ -12,18 +13,23 @@ namespace FileProcessor.Transformers
             this.options = options;
         }
 
-        public async IAsyncEnumerable<T> Execute(IFileReference input)
+        public virtual async IAsyncEnumerable<T> Execute(IFileReference input)
         {
-            var fi = await input.GetLocalFileInfo();
-            using var streamReader = fi.OpenText();
-            var reader = new JsonTextReader(streamReader);
+            using var reader = await this.GetReader(input);
             var serializer = this.options.SerializerSettings == null
                 ? new JsonSerializer()
                 : JsonSerializer.Create(this.options.SerializerSettings);
             await foreach (var item in this.ReadJson(reader, serializer)) yield return item;
         }
 
-        protected virtual async IAsyncEnumerable<T> ReadJson(JsonTextReader reader, JsonSerializer serializer)
+        protected virtual async  Task<JsonReader> GetReader(IFileReference input)
+        {
+            var fi = await input.GetLocalFileInfo();
+            var streamReader = fi.OpenText();
+            return new JsonTextReader(streamReader);
+        }
+
+        protected virtual async IAsyncEnumerable<T> ReadJson(JsonReader reader, JsonSerializer serializer)
         {
             var eof = false;
             while (reader.Path != this.options.JsonPath && !eof) eof = !await reader.ReadAsync();

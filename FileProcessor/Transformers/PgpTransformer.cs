@@ -23,7 +23,7 @@ namespace FileProcessor.Transformers
             this.options = options;
         }
 
-        public async Task<IFileReference> Execute(IFileReference inputFile)
+        public virtual async Task<IFileReference> Execute(IFileReference inputFile)
         {
             this.tmp = Path.GetTempFileName();
             var inputFi = await inputFile.GetLocalFileInfo();
@@ -58,7 +58,7 @@ namespace FileProcessor.Transformers
             return file;
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
             this.toDispose.Dispose();
             if (this.tmp != null)

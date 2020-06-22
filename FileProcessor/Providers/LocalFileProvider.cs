@@ -8,7 +8,7 @@ namespace FileProcessor.Providers
 {
     public class LocalFileProvider : IStep<LocalFileProviderOptions, IEnumerable<IFileReference>>
     {
-        public IEnumerable<IFileReference> Execute(LocalFileProviderOptions input)
+        public virtual IEnumerable<IFileReference> Execute(LocalFileProviderOptions input)
         {
             return Directory.GetFiles(input.Path).Select(f => new LocalFile(f, false));
         }
@@ -16,33 +16,33 @@ namespace FileProcessor.Providers
 
     public class LocalFile : IFileReference, IDisposable
     {
-        private readonly bool deleteOnDispose;
-        private string path;
+        protected readonly bool DeleteOnDispose;
+        protected string Path;
 
         public LocalFile(string path, bool deleteOnDispose = true)
         {
-            this.deleteOnDispose = deleteOnDispose;
-            this.path = path;
+            this.DeleteOnDispose = deleteOnDispose;
+            this.Path = path;
             this.FileReference = path;
         }
 
-        public Task<FileInfo> GetLocalFileInfo()
+        public virtual Task<FileInfo> GetLocalFileInfo()
         {
-            return Task.FromResult(new FileInfo(this.path));
+            return Task.FromResult(new FileInfo(this.Path));
         }
 
         public string FileReference { get; set; }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
-            if (this.path == null || !this.deleteOnDispose)
+            if (this.Path == null || !this.DeleteOnDispose)
                 return;
 
-            var toDelete = this.path;
+            var toDelete = this.Path;
             try
             {
                 File.Delete(toDelete);
-                this.path = null;
+                this.Path = null;
             }
             catch
             {

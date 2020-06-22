@@ -39,13 +39,13 @@ namespace FileProcessor.Providers
             this.client = client;
         }
 
-        public async IAsyncEnumerable<IFileReference> Execute(AzureFileProviderOptions input)
+        public virtual async IAsyncEnumerable<IFileReference> Execute(AzureFileProviderOptions input)
         {
             foreach (var shareName in input.SharesToPaths.Keys)
             {
                 var share = this.client.GetShareReference(shareName);
                 var root = share.GetRootDirectoryReference();
-                await foreach (var file in this.processDir(root,
+                await foreach (var file in this.ProcessDir(root,
                     input.SharesToPaths[shareName].OrderBy(p => p).ToArray()))
                 {
                     yield return file;
@@ -53,21 +53,21 @@ namespace FileProcessor.Providers
             }
         }
 
-        private async IAsyncEnumerable<IFileReference> processDir(CloudFileDirectory dir, string[] pathPatterns)
+        protected virtual async IAsyncEnumerable<IFileReference> ProcessDir(CloudFileDirectory dir, string[] pathPatterns)
         {
             //TODO: Poss optimize this
             var dirContents = dir.ListFilesAndDirectories().ToArray();
 
             var files = dirContents.OfType<CloudFile>();
-            await foreach (var file in this.getFiles(dir, pathPatterns, files.ToArray())) yield return file;
+            await foreach (var file in this.GetFiles(dir, pathPatterns, files.ToArray())) yield return file;
 
             //if (pathPatterns.Select(p => p.Trim('/')).Any(p => p.IndexOf('/') != p.LastIndexOf('/')))
             //{
-            await foreach (var file in this.processSubDirs(pathPatterns, dirContents)) yield return file;
+            await foreach (var file in this.ProcessSubDirs(pathPatterns, dirContents)) yield return file;
             //}
         }
 
-        private async IAsyncEnumerable<IFileReference> processSubDirs(string[] pathPatterns,
+       protected virtual async IAsyncEnumerable<IFileReference> ProcessSubDirs(string[] pathPatterns,
             IListFileItem[] dirContents)
         {
             var dirPatterns = pathPatterns
@@ -87,11 +87,11 @@ namespace FileProcessor.Providers
             {
                 var nextPatterns = matchingPatterns.Select(p =>
                     string.Join('/', p.Split('/').Skip(1)));
-                await foreach (var file in this.processDir(subDir, nextPatterns.ToArray())) yield return file;
+                await foreach (var file in this.ProcessDir(subDir, nextPatterns.ToArray())) yield return file;
             }
         }
 
-        private async IAsyncEnumerable<IFileReference> getFiles(CloudFileDirectory dir, string[] pathPattern,
+       protected virtual async IAsyncEnumerable<IFileReference> GetFiles(CloudFileDirectory dir, string[] pathPattern,
             CloudFile[] files)
         {
             var filePatterns = pathPattern.Select(p => p.TrimStart('/')).Where(p => !p.Contains('/'));
@@ -140,7 +140,7 @@ namespace FileProcessor.Providers
             }
         }
 
-        public async ValueTask DisposeAsync()
+        public virtual async ValueTask DisposeAsync()
         {
             await this.toDispose.DisposeAsync();
         }
@@ -175,9 +175,9 @@ namespace FileProcessor.Providers
             }
         }
 
-        public async Task<FileInfo> GetLocalFileInfo()
+        public virtual async Task<FileInfo> GetLocalFileInfo()
         {
-            if (this.tmp == null) await this.download();
+            if (this.tmp == null) await this.Download();
 
             return new FileInfo(this.tmp);
         }
@@ -187,12 +187,12 @@ namespace FileProcessor.Providers
         public static async Task<AzureFile> FromCloudFile(CloudFile cloudFile, bool download)
         {
             var azf = new AzureFile(cloudFile);
-            if (download) await azf.download();
+            if (download) await azf.Download();
 
             return azf;
         }
 
-        private async Task download()
+       protected virtual async Task Download()
         {
             this.tmp = Path.GetTempFileName();
             await this.cloudFile.DownloadToFileAsync(this.tmp, FileMode.Create);
