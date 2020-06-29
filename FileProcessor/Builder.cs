@@ -170,7 +170,7 @@ namespace FileProcessor
             for (var i = this.Steps.Count - 1; i >= 0; i--)
             {
                 var step = new StepWrapper(cancel);
-                nextStepBuffer = step.Setup(this.Steps[i], this.StepOptions[i], nextStepBuffer);
+                nextStepBuffer = step.Setup(this.Steps[i], this.StepOptions[i], nextStepBuffer, cancel);
                 setupSteps[i] = step;
             }
 
@@ -202,8 +202,7 @@ namespace FileProcessor
             };
         }
 
-        public Func<TFirstIn, IAsyncEnumerable<TOut>> BuildEnumerable<TFirstIn, TOut>(CancellationToken cancel,
-            bool autoDispose)
+        public Func<TFirstIn, IAsyncEnumerable<TOut>> BuildEnumerable<TFirstIn, TOut>(CancellationToken cancel, bool autoDispose)
         {
             var finalStepBuffer = new AwaitableBlockingCollection<WorkWrapper<object>>();
             var build = this.Build<TFirstIn>(finalStepBuffer, cancel);
@@ -268,8 +267,7 @@ namespace FileProcessor
             AwaitableBlockingCollection<WorkWrapper<object>> finalBuffer,
             CancellationToken cancel, bool autoDispose)
         {
-            var enumerable = finalBuffer.GetConsumingEnumerable(cancel);
-            var result = enumerable.First();
+            var result = await finalBuffer.TakeAsync(cancel);
             if (!result.CompletionSource.Task.IsCompleted) result.CompletionSource.SetResult(result.Work);
 
             var output = (TOut) await result.CompletionSource.Task;

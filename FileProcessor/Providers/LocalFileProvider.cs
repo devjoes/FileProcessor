@@ -10,6 +10,20 @@ namespace FileProcessor.Providers
     {
         public virtual IEnumerable<IFileReference> Execute(LocalFileProviderOptions input)
         {
+            if (input.Path.Contains("*"))
+            {
+                var components = input.Path.Split(Path.DirectorySeparatorChar);
+                var searchIn = string.Join(Path.DirectorySeparatorChar, components.TakeWhile(c => !c.Contains("*")));
+                var searchFor = input.Path.Substring(searchIn.Length).Trim(Path.DirectorySeparatorChar);
+                return Directory.GetFiles(searchIn, searchFor, SearchOption.TopDirectoryOnly)
+                    .Select(f => new LocalFile(f, false));
+            }
+
+            if (File.Exists(input.Path))
+            {
+                return new[] {new LocalFile(input.Path)};
+            }
+
             return Directory.GetFiles(input.Path).Select(f => new LocalFile(f, false));
         }
     }

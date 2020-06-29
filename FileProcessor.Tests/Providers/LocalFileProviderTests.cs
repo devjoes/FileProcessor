@@ -31,5 +31,52 @@ namespace FileProcessor.Tests.Providers
                 File.Delete(tempFile);
             }
         }
+
+        [Fact]
+        public async Task ExecuteReadsSingleFile()
+        {
+            const string foo = "foo";
+            var provider = new LocalFileProvider();
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                await File.WriteAllTextAsync(tempFile, foo);
+                var result = provider.Execute(new LocalFileProviderOptions { Path = tempFile });
+                var foundFile = result.SingleOrDefault(l => l.FileReference == tempFile);
+
+                Assert.NotNull(foundFile);
+                var fileInfo = await foundFile.GetLocalFileInfo();
+                using var reader = fileInfo.OpenText();
+                Assert.Equal(foo, await reader.ReadToEndAsync());
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+
+        [Fact]
+        public async Task ExecuteReadsFileByWildCard()
+        {
+            const string foo = "foo";
+            var provider = new LocalFileProvider();
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                await File.WriteAllTextAsync(tempFile, foo);
+                var result = provider.Execute(new LocalFileProviderOptions { Path = tempFile.Remove(tempFile.Length - 3) + "*" });
+                var foundFile = result.SingleOrDefault(l => l.FileReference == tempFile);
+
+                Assert.NotNull(foundFile);
+                var fileInfo = await foundFile.GetLocalFileInfo();
+                using var reader = fileInfo.OpenText();
+                Assert.Equal(foo, await reader.ReadToEndAsync());
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
     }
 }
