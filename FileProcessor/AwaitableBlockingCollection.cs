@@ -58,7 +58,17 @@ namespace FileProcessor
             T item = default;
             while (!this.TryTake(out item) && !this.IsCompleted)
                 await Task.Delay(100, cancel);
+            //TODO: put back
             //await this.isEmptySemaphore.WaitAsync(TimeSpan.FromMilliseconds(20), cancel);
+
+            if (item is WorkWrapper<T> workWrapper)
+            {
+                if (workWrapper.CompletionSource.Task.IsFaulted)
+                {
+                    throw workWrapper.CompletionSource.Task.Exception
+                          ?? new AggregateException(new InvalidOperationException("Task faulted"));
+                }
+            }
             return item;
         }
 
@@ -67,6 +77,7 @@ namespace FileProcessor
             var sw = Stopwatch.StartNew();
             if (this.isEmptySemaphore.CurrentCount == 0)
             {
+                //TODO: put back
                 //this.isEmptySemaphore.Release();
             }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,10 +19,11 @@ namespace FileProcessor
         public Task[] Tasks { get; set; }
 
         public AwaitableBlockingCollection<WorkWrapper<TIn>> Setup<TIn, TOut>(Func<TIn, IAsyncEnumerable<TOut>> step,
-            StepOptions options, AwaitableBlockingCollection<WorkWrapper<object>> next)
+            StepOptions options, AwaitableBlockingCollection<WorkWrapper<object>> next,
+            CancellationToken cancellationToken)
         {
             var buffer = new AwaitableBlockingCollection<WorkWrapper<TIn>>(options.BufferCapacity);
-            var enumerable = buffer.GetConsumingEnumerable(this.cancel);
+            //var enumerable = buffer.GetConsumingEnumerable(this.cancel);
 
             // This ensures each task gets its own thread and can run concurrently otherwise
             // we could deadlock/await a long time. The only alternative would have been
@@ -29,27 +31,48 @@ namespace FileProcessor
             // stack without any way of managing its lifecycle/state using BeginInvoke
             // (which I don't think you can do in core anymore anyway)
             this.Tasks = Enumerable.Range(0, options.Parallelism)
-                .Select(_ => Task.Factory.StartNew(async () => await this.mainLoop(enumerable, next, step),
+                .Select(_ => Task.Factory.StartNew(async () => await this.mainLoop(buffer, next, step, cancellationToken),
                     CancellationToken.None, TaskCreationOptions.LongRunning, new ThreadPerTaskScheduler())).ToArray();
             return buffer;
         }
 
-        private async Task mainLoop<TIn, TOut>(IEnumerable<WorkWrapper<TIn>> enumerable,
-            AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step)
+        private async Task mainLoop<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<TIn>> enumerable, AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step, CancellationToken cancellationToken)
         {
-            foreach (var consumed in enumerable)
+            bool finished = false;
+            //using var enumerator = enumerable.GetEnumerator();
+            while (!finished && !cancellationToken.IsCancellationRequested)
+            {
                 try
                 {
-                    if (consumed.CompletionSource.Task.IsCompleted)
+                    var consumed = await enumerable.TakeAsync(cancellationToken);
+                    finished = consumed == default;
+                    Debug.WriteLine(consumed?.Index + "");
+                    if (finished)
+                    {
+                        continue;
+                    }
+                    
+                    try
+                    {
+                        if (consumed.CompletionSource.Task.IsCompleted)
+                            next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
+                        else
+                            await this.passWorkToNextStep(next, step(consumed.Work), consumed);
+                    }
+                    catch (Exception ex)
+                    {
+                        consumed.CompletionSource.SetException(ex);
                         next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
-                    else
-                        await this.passWorkToNextStep(next, step(consumed.Work), consumed);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    consumed.CompletionSource.SetException(ex);
-                    next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
+                    Debug.WriteLine(ex.Message);
+                    Debug.WriteLine(ex.StackTrace);
+                    Console.WriteLine(ex.Message);
+                    Console.WriteLine(ex.StackTrace);
                 }
+            }
 
             next.CompleteAdding();
             if (step is IAsyncDisposable ad) await ad.DisposeAsync();
