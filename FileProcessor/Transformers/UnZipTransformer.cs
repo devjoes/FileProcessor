@@ -18,6 +18,10 @@ namespace FileProcessor.Transformers
 
         public virtual async IAsyncEnumerable<IFileReference> Execute(IFileReference input)
         {
+            if (input == null)
+            {
+                yield break;
+            }
             var zipFi = await input.GetLocalFileInfo();
             using var zip = ZipFile.OpenRead(zipFi.FullName);
             this.tmpDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());

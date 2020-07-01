@@ -25,6 +25,10 @@ namespace FileProcessor.Transformers
 
         public virtual async Task<IFileReference> Execute(IFileReference inputFile)
         {
+            if (inputFile == null)
+            {
+                return null;
+            }
             this.tmp = Path.GetTempFileName();
             var inputFi = await inputFile.GetLocalFileInfo();
             await using var input = inputFi.OpenRead();
@@ -34,7 +38,7 @@ namespace FileProcessor.Transformers
                 fileName = Path.GetFileName(fileName);
             }
 
-            fileName= fileName.Replace(".pgp", string.Empty).Replace(".enc", string.Empty);
+            fileName = fileName.Replace(".pgp", string.Empty).Replace(".enc", string.Empty);
             var file = new LocalFile(this.tmp);
 
             await using (var output = File.OpenWrite(this.tmp))
@@ -112,7 +116,7 @@ namespace FileProcessor.Transformers
             }
         }
 
-        private static async Task decrypt(Stream input, Stream output, Stream key, string password,bool testIntegrity = true)
+        private static async Task decrypt(Stream input, Stream output, Stream key, string password, bool testIntegrity = true)
         {
             input = PgpUtilities.GetDecoderStream(input);
             var pgpF = new PgpObjectFactory(input);
@@ -122,7 +126,7 @@ namespace FileProcessor.Transformers
             if (o is PgpEncryptedDataList list)
                 enc = list;
             else
-                enc = (PgpEncryptedDataList) pgpF.NextPgpObject();
+                enc = (PgpEncryptedDataList)pgpF.NextPgpObject();
             PgpPrivateKey sKey = null;
             PgpPublicKeyEncryptedData pbe = null;
             var pgpSec = new PgpSecretKeyRingBundle(
@@ -153,18 +157,17 @@ namespace FileProcessor.Transformers
                 message = pgpFact.NextPgpObject();
             }
 
-            switch (message)
+            if (message is PgpLiteralData ld)
             {
-                case PgpLiteralData ld:
-                {
-                    await using var unc = ld.GetInputStream();
-                    Streams.PipeAll(unc, output);
-                    break;
-                }
-                case PgpOnePassSignatureList _:
-                    throw new PgpException("encrypted message contains a signed message - not literal data.");
-                default:
-                    throw new PgpException("message is not a simple encrypted file - type unknown.");
+                await using var unc = ld.GetInputStream();
+                Streams.PipeAll(unc, output);
+            }
+            else
+            {
+
+                throw new PgpException(message is PgpOnePassSignatureList
+                ? "encrypted message contains a signed message - not literal data."
+                : "message is not a simple encrypted file - type unknown.");
             }
 
             if (testIntegrity && (!pbe.IsIntegrityProtected() || !pbe.Verify()))
@@ -184,9 +187,9 @@ namespace FileProcessor.Transformers
             var bundle = new PgpPublicKeyRingBundle(
                 PgpUtilities.GetDecoderStream(ms));
             foreach (PgpPublicKeyRing keyRing in bundle.GetKeyRings())
-            foreach (PgpPublicKey key in keyRing.GetPublicKeys())
-                if (key.IsEncryptionKey)
-                    return key;
+                foreach (PgpPublicKey key in keyRing.GetPublicKeys())
+                    if (key.IsEncryptionKey)
+                        return key;
 
             throw new ArgumentException("Can't find encryption key in key ring.");
         }

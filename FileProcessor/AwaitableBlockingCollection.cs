@@ -21,7 +21,7 @@ namespace FileProcessor
         public AwaitableBlockingCollection()
         {
             this.isEmptySemaphore = new SemaphoreSlim(0, 1);
-            this.blockingCollection = new BlockingCollection<T>();
+            this.blockingCollection = new BlockingCollection<T>(10);
         }
 
         public bool IsCompleted => this.blockingCollection.IsCompleted;

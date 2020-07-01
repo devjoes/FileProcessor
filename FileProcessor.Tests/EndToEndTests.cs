@@ -10,50 +10,48 @@ namespace FileProcessor.Tests
 {
     public class EndToEndTests
     {
-        // These dont run properly on github 
-
         // exact timings vary depending on core count/load etc so the timings here are pretty vague
-        //[Theory]
-        //[InlineData(false, 1, 1, 10, 11)]
-        //[InlineData(true, 1, 1, 10, 11)]
-        //[InlineData(false, 5, 1, 1, 3)]
-        //[InlineData(true, 5, 1, 1, 3)]
-        //[InlineData(false, 5, 2, 2, 4)]
-        //[InlineData(true, 5, 2, 2, 4)]
-        //[InlineData(true, 5, 3, 4, 7)]
-        //public async Task ParallelExecutionTest(bool sync, int parallelism, int stepCount, int minSecs, int maxSecs)
-        //{
-        //    var asyncStep = new Func<int, Task<int>>(async i =>
-        //    {
-        //        await Task.Delay(TimeSpan.FromSeconds(1));
-        //        return i;
-        //    });
-        //    var syncStep = new Func<int, int>(i =>
-        //    {
-        //        Task.Delay(TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
-        //        return i;
-        //    });
+        [Theory]
+        [InlineData(false, 1, 1, 10, 11)]
+        [InlineData(true, 1, 1, 10, 11)]
+        [InlineData(false, 5, 1, 1, 3)]
+        [InlineData(true, 5, 1, 1, 3)]
+        [InlineData(false, 5, 2, 2, 6)]
+        [InlineData(true, 5, 2, 2, 4)]
+        [InlineData(true, 5, 3, 4, 7)]
+        public async Task ParallelExecutionTest(bool sync, int parallelism, int stepCount, int minSecs, int maxSecs)
+        {
+            var asyncStep = new Func<int, Task<int>>(async i =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                return i;
+            });
+            var syncStep = new Func<int, int>(i =>
+            {
+                Task.Delay(TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
+                return i;
+            });
 
-        //    var timer = Stopwatch.StartNew();
+            var timer = Stopwatch.StartNew();
 
-        //    var stepOptions = new StepOptions {Parallelism = parallelism};
-        //    var builder = new Builder().AcceptCollection<int>();
-        //    for (var i = 0; i < stepCount; i++)
-        //        builder = sync
-        //            ? builder.AddStep(syncStep, stepOptions)
-        //            : builder.AddStep(asyncStep, stepOptions);
+            var stepOptions = new StepOptions { Parallelism = parallelism };
+            var builder = new Builder().AcceptCollection<int>();
+            for (var i = 0; i < stepCount; i++)
+                builder = sync
+                    ? builder.AddStep(syncStep, stepOptions)
+                    : builder.AddStep(asyncStep, stepOptions);
 
-        //    var process = builder.ReturnsAsyncEnumerable<int>();
-        //    var input = Enumerable.Range(1, 10).ToArray();
-        //    var enumerator = process(input);
+            var process = builder.ReturnsAsyncEnumerable<int>();
+            var input = Enumerable.Range(1, 10).ToArray();
+            var enumerator = process(input);
 
-        //    var sum = 0;
-        //    await foreach (var i in enumerator) sum += i;
-        //    timer.Stop();
-        //    Assert.True(minSecs <= timer.Elapsed.Seconds, timer.Elapsed.ToString());
-        //    Assert.True(maxSecs >= timer.Elapsed.Seconds, timer.Elapsed.ToString());
-        //    Assert.Equal(input.Sum(), sum);
-        //}
+            var sum = 0;
+            await foreach (var i in enumerator) sum += i;
+            timer.Stop();
+            Assert.True(minSecs <= timer.Elapsed.Seconds, timer.Elapsed.ToString());
+            Assert.True(maxSecs >= timer.Elapsed.Seconds, timer.Elapsed.ToString());
+            Assert.Equal(input.Sum(), sum);
+        }
 
 
         [Fact]
