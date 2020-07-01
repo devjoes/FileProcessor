@@ -15,11 +15,18 @@ namespace FileProcessor.Transformers
 
         public virtual async IAsyncEnumerable<T> Execute(IFileReference input)
         {
+            if (input == null)
+            {
+                yield break;
+            }
             using var reader = await this.GetReader(input);
             var serializer = this.options.SerializerSettings == null
                 ? new JsonSerializer()
                 : JsonSerializer.Create(this.options.SerializerSettings);
-            await foreach (var item in this.ReadJson(reader, serializer)) yield return item;
+            await foreach (var item in this.ReadJson(reader, serializer))
+            {
+                yield return item;
+            }
         }
 
         protected virtual async  Task<JsonReader> GetReader(IFileReference input)

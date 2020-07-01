@@ -35,7 +35,8 @@ namespace FileProcessor
                     CancellationToken.None, TaskCreationOptions.LongRunning, new ThreadPerTaskScheduler())).ToArray();
             return buffer;
         }
-
+        //TODO: Add throw on error option
+        //TODO: make it not pass null if no output from step
         private async Task mainLoop<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<TIn>> enumerable, AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step, CancellationToken cancellationToken)
         {
             bool finished = false;
@@ -86,7 +87,7 @@ namespace FileProcessor
             var enumerator = enumerable.GetAsyncEnumerator(this.cancel);
             var finished = !await enumerator.MoveNextAsync();
             var first = true;
-            var subTasks = new List<Task<object>>();
+            var subTasks = new List<Task>();
 
             do
             {
@@ -107,6 +108,10 @@ namespace FileProcessor
                     {
                         CompletionSource = individualCompletionSource
                     }, this.cancel);
+                    if (subTasks.Count > 100) //TODO: Make this configurable
+                    {
+                        subTasks.RemoveAll(t => t.IsCompleted);
+                    }
                 }
 
                 first = false;

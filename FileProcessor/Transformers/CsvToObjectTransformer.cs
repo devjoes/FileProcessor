@@ -19,6 +19,10 @@ namespace FileProcessor.Transformers
 
         public async IAsyncEnumerable<T> Execute(IFileReference input)
         {
+            if (input == null)
+            {
+                yield break;
+            }
             await using var stream = (await input.GetLocalFileInfo()).OpenRead();
             using var reader = new StreamReader(stream);
             var csv = new CsvReader(reader, this.csvConfig);
