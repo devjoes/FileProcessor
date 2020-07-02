@@ -7,6 +7,7 @@ using System.Security.Authentication;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Auth;
 using Microsoft.Azure.Storage.File;
@@ -26,7 +27,7 @@ namespace FileProcessor.Providers
             this.downloadFilesOnceFound = downloadFilesOnceFound;
             var storageAccount = authenticateWithMsi
                 ? new CloudStorageAccount(
-                    new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/"))), true)
+                    new StorageCredentials(new TokenCredential(getMsiToken("https://blob.core.windows.net/"))), true)
                 : CloudStorageAccount.Parse(connectionString);
 
             this.toDispose = new CompositeDisposable();
@@ -120,7 +121,7 @@ namespace FileProcessor.Providers
         private static string getMsiToken(string resourceId)
         {
             var request = (HttpWebRequest)WebRequest.Create(
-                "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" + resourceId);
+                "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" + HttpUtility.UrlEncode(resourceId));
             request.Headers["Metadata"] = "true";
             request.Method = "GET";
 
