@@ -28,7 +28,7 @@ namespace FileProcessor.Providers
             this.downloadFilesOnceFound = downloadFilesOnceFound;
             var storageAccount = authenticateWithMsi
                 ? new CloudStorageAccount(
-                    new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/"))), true)
+                    new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult())), true)
                 : CloudStorageAccount.Parse(connectionString);
 
             this.toDispose = new CompositeDisposable();
