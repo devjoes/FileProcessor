@@ -29,8 +29,12 @@ namespace FileProcessor.Providers
             var storageAccount = CloudStorageAccount.Parse(connectionString);
             if (authenticateWithMsi)
             {
+                string accountName = connectionString.Split(';').First(i =>
+                        i.StartsWith("AccountName=", StringComparison.InvariantCultureIgnoreCase))
+                    .Substring("AccountName=".Length);
                 var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
-                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), storageAccount.Credentials.AccountName, true);
+                Console.WriteLine(accountName);
+                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, true);
             }
             this.client = storageAccount.CreateCloudFileClient();
 
