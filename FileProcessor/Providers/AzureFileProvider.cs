@@ -26,7 +26,7 @@ namespace FileProcessor.Providers
             bool downloadFilesOnceFound = true)
         {
             this.downloadFilesOnceFound = downloadFilesOnceFound;
-            var storageAccount = CloudStorageAccount.Parse(connectionString);
+            CloudStorageAccount storageAccount;
             if (authenticateWithMsi)
             {
                 string accountName = connectionString.Split(';').First(i =>
@@ -35,6 +35,10 @@ namespace FileProcessor.Providers
                 var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
                 Console.WriteLine(accountName);
                 storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, true);
+            }
+            else
+            {
+                storageAccount = CloudStorageAccount.Parse(connectionString);
             }
             this.client = storageAccount.CreateCloudFileClient();
 
