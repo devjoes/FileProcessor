@@ -26,13 +26,15 @@ namespace FileProcessor.Providers
             bool downloadFilesOnceFound = true)
         {
             this.downloadFilesOnceFound = downloadFilesOnceFound;
-            var storageAccount = authenticateWithMsi
-                ? new CloudStorageAccount(
-                    new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult())), true)
-                : CloudStorageAccount.Parse(connectionString);
+            var storageAccount = CloudStorageAccount.Parse(connectionString);
+            if (authenticateWithMsi)
+            {
+                var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
+                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), storageAccount.Credentials.AccountName, true);
+            }
+            this.client = storageAccount.CreateCloudFileClient();
 
             this.toDispose = new CompositeDisposable();
-            this.client = storageAccount.CreateCloudFileClient();
         }
 
         public AzureFileProvider(CloudFileClient client)
