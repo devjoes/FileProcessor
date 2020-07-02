@@ -31,10 +31,15 @@ namespace FileProcessor.Providers
             {
                 string accountName = connectionString.Split(';').First(i =>
                         i.StartsWith("AccountName=", StringComparison.InvariantCultureIgnoreCase))
-                    .Substring("AccountName=".Length);
+                    .Substring(12);
+                string endpointSuffix = connectionString.Split(';').First(i =>
+                         i.StartsWith("EndpointSuffix=", StringComparison.InvariantCultureIgnoreCase))
+                    .Substring(15);
+
                 var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
                 Console.WriteLine(accountName);
-                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, true);
+                Console.WriteLine(endpointSuffix);
+                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, endpointSuffix, true);
             }
             else
             {
@@ -79,8 +84,8 @@ namespace FileProcessor.Providers
             //}
         }
 
-       protected virtual async IAsyncEnumerable<IFileReference> ProcessSubDirs(string[] pathPatterns,
-            IListFileItem[] dirContents)
+        protected virtual async IAsyncEnumerable<IFileReference> ProcessSubDirs(string[] pathPatterns,
+             IListFileItem[] dirContents)
         {
             var dirPatterns = pathPatterns
                 .Select(p => p.Trim('/'))
@@ -103,8 +108,8 @@ namespace FileProcessor.Providers
             }
         }
 
-       protected virtual async IAsyncEnumerable<IFileReference> GetFiles(CloudFileDirectory dir, string[] pathPattern,
-            CloudFile[] files)
+        protected virtual async IAsyncEnumerable<IFileReference> GetFiles(CloudFileDirectory dir, string[] pathPattern,
+             CloudFile[] files)
         {
             var filePatterns = pathPattern.Select(p => p.TrimStart('/')).Where(p => !p.Contains('/'));
 
@@ -214,7 +219,7 @@ namespace FileProcessor.Providers
             return azf;
         }
 
-       protected virtual async Task Download()
+        protected virtual async Task Download()
         {
             this.tmp = Path.GetTempFileName();
             await this.cloudFile.DownloadToFileAsync(this.tmp, FileMode.Create);
