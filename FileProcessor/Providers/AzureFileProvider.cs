@@ -120,23 +120,26 @@ namespace FileProcessor.Providers
 
         private static string getMsiToken(string resourceId)
         {
-            var request = (HttpWebRequest)WebRequest.Create(
-                "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" + HttpUtility.UrlEncode(resourceId));
+            string url = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" +
+                         HttpUtility.UrlEncode(resourceId);
+            Console.WriteLine(url);
+            var request = (HttpWebRequest)WebRequest.Create(url);
             request.Headers["Metadata"] = "true";
             request.Method = "GET";
 
+            string stringResponse = string.Empty;
             try
             {
                 var response = (HttpWebResponse)request.GetResponse();
                 using var streamResponse = new StreamReader(response.GetResponseStream());
-                var stringResponse = streamResponse.ReadToEnd();
+                stringResponse = streamResponse.ReadToEnd();
                 var list = JsonConvert.DeserializeObject<Dictionary<string, string>>(stringResponse);
                 return list["access_token"];
             }
             catch (Exception e)
             {
                 var errorText =
-                    $"{e.Message}\n\n{(e.InnerException != null ? e.InnerException.Message : "Acquire token failed")}";
+                    $"{e.Message}\n\n{(e.InnerException != null ? e.InnerException.Message : "Acquire token failed")}\n\n{stringResponse}";
                 throw new AuthenticationException(errorText, e.InnerException);
             }
         }
