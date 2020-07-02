@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Security.Authentication;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -27,7 +28,7 @@ namespace FileProcessor.Providers
             this.downloadFilesOnceFound = downloadFilesOnceFound;
             var storageAccount = authenticateWithMsi
                 ? new CloudStorageAccount(
-                    new StorageCredentials(new TokenCredential(getMsiToken("https://blob.core.windows.net/"))), true)
+                    new StorageCredentials(new TokenCredential(getMsiToken("https://storage.azure.com/"))), true)
                 : CloudStorageAccount.Parse(connectionString);
 
             this.toDispose = new CompositeDisposable();
@@ -118,21 +119,17 @@ namespace FileProcessor.Providers
             }
         }
 
-        private static string getMsiToken(string resourceId)
+        private static async Task<string> getMsiToken(string resourceId)
         {
             string url = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" +
                          HttpUtility.UrlEncode(resourceId);
             Console.WriteLine(url);
-            var request = (HttpWebRequest)WebRequest.Create(url);
-            request.Headers["Metadata"] = "true";
-            request.Method = "GET";
-
+            using var client = new HttpClient();
+            
             string stringResponse = string.Empty;
             try
             {
-                var response = (HttpWebResponse)request.GetResponse();
-                using var streamResponse = new StreamReader(response.GetResponseStream());
-                stringResponse = streamResponse.ReadToEnd();
+                stringResponse = await client.GetStringAsync(url);
                 var list = JsonConvert.DeserializeObject<Dictionary<string, string>>(stringResponse);
                 return list["access_token"];
             }
