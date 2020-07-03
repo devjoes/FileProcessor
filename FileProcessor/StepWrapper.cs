@@ -62,6 +62,10 @@ namespace FileProcessor
                     }
                     catch (Exception ex)
                     {
+                        Debug.WriteLine(ex.Message);
+                        Debug.WriteLine(ex.StackTrace);
+                        Console.WriteLine(ex.Message);
+                        Console.WriteLine(ex.StackTrace);
                         consumed.CompletionSource.SetException(ex);
                         next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
                     }
