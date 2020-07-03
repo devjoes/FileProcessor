@@ -12,6 +12,7 @@ using System.Web;
 using Microsoft.Azure.Storage;
 using Microsoft.Azure.Storage.Auth;
 using Microsoft.Azure.Storage.File;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
 namespace FileProcessor.Providers
@@ -19,12 +20,14 @@ namespace FileProcessor.Providers
     public class AzureFileProvider : IAsyncEnumerableStep<AzureFileProviderOptions, IFileReference>, IAsyncDisposable
     {
         private readonly CloudFileClient client;
+        private readonly ILogger logger;
         private readonly bool downloadFilesOnceFound;
         private readonly CompositeDisposable toDispose;
 
-        public AzureFileProvider(string connectionString, bool authenticateWithMsi = false,
+        public AzureFileProvider(string connectionString, ILogger logger, bool authenticateWithMsi = false,
             bool downloadFilesOnceFound = true)
         {
+            this.logger = logger;
             this.downloadFilesOnceFound = downloadFilesOnceFound;
             CloudStorageAccount storageAccount;
             if (authenticateWithMsi)
@@ -37,8 +40,8 @@ namespace FileProcessor.Providers
                     .Substring(15);
 
                 var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
-                Console.WriteLine(accountName);
-                Console.WriteLine(endpointSuffix);
+                this.logger?.LogDebug(accountName);
+                this.logger?.LogDebug(endpointSuffix);
                 storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, endpointSuffix, true);
             }
             else
@@ -50,24 +53,40 @@ namespace FileProcessor.Providers
             this.toDispose = new CompositeDisposable();
         }
 
-        public AzureFileProvider(CloudFileClient client)
+        public AzureFileProvider(CloudFileClient client, ILogger logger)
         {
             this.toDispose = new CompositeDisposable();
             this.client = client;
+            this.logger = logger;
         }
 
         public virtual async IAsyncEnumerable<IFileReference> Execute(AzureFileProviderOptions input)
         {
+            this.logger?.LogTrace("Execute");
             foreach (var shareName in input.SharesToPaths.Keys)
             {
-                var share = this.client.GetShareReference(shareName);
-                var root = share.GetRootDirectoryReference();
+                CloudFileDirectory root;
+                try
+                {
+                    this.logger?.LogTrace(shareName);
+                    var share = this.client.GetShareReference(shareName);
+                    this.logger?.LogTrace(share.Uri.ToString());
+                    root = share.GetRootDirectoryReference();
+
+                }
+                catch (Exception ex)
+                {
+                    this.logger?.LogError(ex.Message + "\n" + ex.StackTrace);
+                    throw;
+                }
                 await foreach (var file in this.ProcessDir(root,
                     input.SharesToPaths[shareName].OrderBy(p => p).ToArray()))
                 {
+                    this.logger?.LogTrace(file.FileReference);
                     yield return file;
                 }
             }
+
         }
 
         protected virtual async IAsyncEnumerable<IFileReference> ProcessDir(CloudFileDirectory dir, string[] pathPatterns)

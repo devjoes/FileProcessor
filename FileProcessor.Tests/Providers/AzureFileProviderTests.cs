@@ -25,7 +25,7 @@ namespace FileProcessor.Tests.Providers
                 {$"/{share}/baz.jpg", "baz"}
             });
 
-            var processor = new AzureFileProvider(client);
+            var processor = new AzureFileProvider(client,null);
             var result = processor.Execute(new AzureFileProviderOptions
             {
                 SharesToPaths = new Dictionary<string, string[]>
@@ -68,7 +68,7 @@ namespace FileProcessor.Tests.Providers
                 {$"/{share}/baz.jpg", "baz"}
             });
 
-            var processor = new AzureFileProvider(client);
+            var processor = new AzureFileProvider(client,null);
             var result = processor.Execute(new AzureFileProviderOptions
             {
                 SharesToPaths = new Dictionary<string, string[]>
@@ -106,7 +106,7 @@ namespace FileProcessor.Tests.Providers
                 {$"/{share}/baz.jpg", "baz"}
             });
 
-            var processor = new AzureFileProvider(client);
+            var processor = new AzureFileProvider(client,null);
             var result = processor.Execute(new AzureFileProviderOptions
             {
                 SharesToPaths = new Dictionary<string, string[]>
@@ -138,7 +138,7 @@ namespace FileProcessor.Tests.Providers
                 {$"/{share}/{path.Trim('/')}", foo}
             });
 
-            var processor = new AzureFileProvider(client);
+            var processor = new AzureFileProvider(client,null);
             var result = processor.Execute(new AzureFileProviderOptions
             {
                 SharesToPaths = new Dictionary<string, string[]>
