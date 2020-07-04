@@ -8,10 +8,12 @@
     <RepositoryUrl>https://github.com/devjoes/FileProcessor</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Description>Uses the pipes and filters pattern to handle enc/decrypting, compressing and deserializing files.</Description>
-    <Version>1.0.15</Version>
+    <Version>1.0.16</Version>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.1.1" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.4.4" />
     <PackageReference Include="CsvHelper" Version="15.0.5" />
     <PackageReference Include="Microsoft.Azure.Storage.File" Version="11.1.7" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.5" />

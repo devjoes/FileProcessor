@@ -24,31 +24,13 @@ namespace FileProcessor.Providers
         private readonly bool downloadFilesOnceFound;
         private readonly CompositeDisposable toDispose;
 
-        public AzureFileProvider(string connectionString, ILogger logger, bool authenticateWithMsi = false,
-            bool downloadFilesOnceFound = true)
+        public AzureFileProvider(string connectionString, ILogger logger, bool downloadFilesOnceFound = true)
         {
             this.logger = logger;
             this.downloadFilesOnceFound = downloadFilesOnceFound;
-            CloudStorageAccount storageAccount;
-            if (authenticateWithMsi)
-            {
-                string accountName = connectionString.Split(';').First(i =>
-                        i.StartsWith("AccountName=", StringComparison.InvariantCultureIgnoreCase))
-                    .Substring(12);
-                string endpointSuffix = connectionString.Split(';').First(i =>
-                         i.StartsWith("EndpointSuffix=", StringComparison.InvariantCultureIgnoreCase))
-                    .Substring(15);
 
-                var token = getMsiToken("https://storage.azure.com/").GetAwaiter().GetResult();
-                this.logger?.LogDebug(accountName);
-                this.logger?.LogDebug(endpointSuffix);
-                storageAccount = new CloudStorageAccount(new StorageCredentials(new TokenCredential(token)), accountName, endpointSuffix, true);
-            }
-            else
-            {
-                storageAccount = CloudStorageAccount.Parse(connectionString);
-            }
-            this.client = storageAccount.CreateCloudFileClient();
+            var storageAccount = CloudStorageAccount.Parse(connectionString);
+                this.client = storageAccount.CreateCloudFileClient();
 
             this.toDispose = new CompositeDisposable();
         }
@@ -151,39 +133,6 @@ namespace FileProcessor.Providers
                 //    yield return await AzureFile.FromCloudFile(dir.GetFileReference(pattern), this.downloadFilesOnceFound);
                 //}
             }
-        }
-
-        private static async Task<string> getMsiToken(string resourceId, int maxAttempts = 30)
-        {
-            string url = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=" +
-                         HttpUtility.UrlEncode(resourceId);
-            Console.WriteLine(url);
-            using var client = new HttpClient();
-
-            Exception lastEx = new InvalidOperationException($"{url} never queried");
-            for (int i = 0; i < maxAttempts; i++)
-            {
-                try
-                {
-                    var stringResponse = await client.GetStringAsync(url);
-                    var list = JsonConvert.DeserializeObject<Dictionary<string, string>>(stringResponse);
-                    return list["access_token"];
-                }
-                catch (Exception e)
-                {
-                    string err = string.Empty;
-                    var ex = e;
-                    while (ex != null)
-                    {
-                        err = $"{err}\n\n{ex.Message}";
-                        ex = ex.InnerException;
-                    }
-
-                    lastEx = new AuthenticationException(err, e.InnerException);
-                }
-            }
-
-            throw lastEx;
         }
 
         public virtual async ValueTask DisposeAsync()
