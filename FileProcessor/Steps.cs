@@ -22,6 +22,5 @@ namespace FileProcessor
     {
         public int Parallelism { get; set; } = 1;
         public int BufferCapacity { get; set; } = 10;
-        public bool ExitOnException { get; set; } = true;
     }
 }
