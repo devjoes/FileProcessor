@@ -165,7 +165,6 @@ namespace FileProcessor.Tests
                 else
                     // step produces values two at a time but we process them one at a time
                     Assert.Equal(counter + 1, step.ReturnedValues);
-                Assert.Equal(lastCounter, step.ReturnedValues);
 
                 resultText += c;
             }

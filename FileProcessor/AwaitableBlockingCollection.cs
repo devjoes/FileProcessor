@@ -35,31 +35,25 @@ namespace FileProcessor
 
         public IEnumerable<T> GetConsumingEnumerable(CancellationToken cancel)
         {
-            var sw = Stopwatch.StartNew();
-
             while (!this.blockingCollection.IsCompleted)
                 if (this.blockingCollection.TryTake(out var item))
                 {
                     yield return item;
-                    sw.Restart();
                 }
         }
 
         public bool TryTake(out T item)
         {
-            var sw = Stopwatch.StartNew();
             var success = this.blockingCollection.TryTake(out item);
             return success;
         }
 
         public async Task<T> TakeAsync(CancellationToken cancel)
         {
-            var sw = Stopwatch.StartNew();
             T item = default;
             while (!this.TryTake(out item) && !this.IsCompleted)
                 await Task.Delay(100, cancel);
-            //TODO: put back
-            //await this.isEmptySemaphore.WaitAsync(TimeSpan.FromMilliseconds(20), cancel);
+            await this.isEmptySemaphore.WaitAsync(TimeSpan.FromMilliseconds(20), cancel);
 
             if (item is WorkWrapper<T> workWrapper)
             {
@@ -74,11 +68,12 @@ namespace FileProcessor
 
         public void Add(T item, in CancellationToken cancel)
         {
-            var sw = Stopwatch.StartNew();
             if (this.isEmptySemaphore.CurrentCount == 0)
             {
-                //TODO: put back
-                //this.isEmptySemaphore.Release();
+                try
+                {
+                    this.isEmptySemaphore.Release();
+                }catch(SemaphoreFullException){}
             }
 
             this.blockingCollection.Add(item, cancel);

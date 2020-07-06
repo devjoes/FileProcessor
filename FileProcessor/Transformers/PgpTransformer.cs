@@ -69,7 +69,6 @@ namespace FileProcessor.Transformers
             {
                 try
                 {
-                    //todo: secure erase? Everything is enc at rest in the cloud but still? Does secure erase even work now with SSDs?
                     File.Delete(this.tmp);
                 }
                 catch
