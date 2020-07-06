@@ -19,7 +19,7 @@ namespace FileProcessor.Providers
 {
     public class AzureFileProvider : IAsyncEnumerableStep<AzureFileProviderOptions, IFileReference>, IAsyncDisposable
     {
-        public readonly CloudFileClient client; //todo: make private
+        private readonly CloudFileClient client;
         private readonly ILogger logger;
         private readonly bool downloadFilesOnceFound;
         private readonly CompositeDisposable toDispose;

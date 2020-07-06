@@ -56,16 +56,27 @@ namespace FileProcessor.Providers
                 this.logger?.LogError(ex.Message + "\n" + ex.StackTrace);
                 throw;
             }
+
+            BlobItem lastBlob = null;
             await foreach (var blob in blobs)
             {
+                if (lastBlob != null)
+                {
+                    input.AfterProcessing?.Invoke(this.client, lastBlob);
+                    lastBlob = null;
+                }
                 if (rx.IsMatch(blob.Name))
                 {
+                    input.BeforeProcessing?.Invoke(this.client, blob);
                     yield return await AzureBlob.FromBlob(blob, this.client, this.downloadFilesOnceFound);
+                    lastBlob = blob;
                 }
-
             }
 
-
+            if (lastBlob != null)
+            {
+                input.AfterProcessing?.Invoke(this.client, lastBlob);
+            }
         }
 
         public virtual async ValueTask DisposeAsync()
@@ -130,8 +141,9 @@ namespace FileProcessor.Providers
 
     public class AzureBlobProviderOptions
     {
-        public Dictionary<string, string[]> SharesToPaths { get; set; }
         public string Prefix { get; set; }
         public string NameRegex { get; set; }
+        public Func<BlobContainerClient, BlobItem, Task> BeforeProcessing { get; set; }
+        public Func<BlobContainerClient, BlobItem, Task> AfterProcessing { get; set; }
     }
 }

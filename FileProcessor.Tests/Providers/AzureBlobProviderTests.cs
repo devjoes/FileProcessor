@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using DockerizedTesting.Azurite;
 using FileProcessor.Providers;
 using Xunit;
@@ -34,14 +35,35 @@ namespace FileProcessor.Tests.Providers
         public async Task ExecuteDownloadsBlobs()
         {
             var blobProvider = new AzureBlobProvider(this.connectionString, containerName, null);
-            var files = blobProvider.Execute(new AzureBlobProviderOptions());
+            var before = new List<BlobItem>();
+            var  after = new List<BlobItem>();
+            var files = blobProvider.Execute(new AzureBlobProviderOptions
+            {
+                BeforeProcessing = (_, item) =>
+                {
+                    before.Add(item);
+                    return Task.CompletedTask;
+                },
+                AfterProcessing = (_, item) =>
+                {
+                after.Add(item);
+                return Task.CompletedTask;
+            }
+            });
             List<IFileReference> results = new List<IFileReference>();
             await foreach (var file in files)
             {
+                if (results.Any())
+                {
+                    Assert.Equal(after.Last().Name, results.Last().FileReference);
+                }
+                Assert.Equal(before.Last().Name, file.FileReference);
                 results.Add(file);
             }
 
             Assert.Equal(3, results.Count);
+            Assert.Equal("bar", results.First().FileReference);
+            Assert.Equal("foo2", results.Last().FileReference);
         }
 
 

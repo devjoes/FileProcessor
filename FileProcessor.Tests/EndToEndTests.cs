@@ -45,12 +45,13 @@ namespace FileProcessor.Tests
             var input = Enumerable.Range(1, 10).ToArray();
             var enumerator = process(input);
 
-            var sum = 0;
-            await foreach (var i in enumerator) sum += i;
+            List<int> output = new List<int>();
+            await foreach (var i in enumerator) output.Add(i);
             timer.Stop();
+            output.Sort();
             Assert.True(minSecs <= timer.Elapsed.Seconds, timer.Elapsed.ToString());
             Assert.True(maxSecs >= timer.Elapsed.Seconds, timer.Elapsed.ToString());
-            Assert.Equal(input.Sum(), sum);
+            Assert.Equal(input, output);
         }
 
 
