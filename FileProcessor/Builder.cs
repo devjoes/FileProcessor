@@ -184,7 +184,8 @@ namespace FileProcessor
                     return;
                 }
 
-                var tcs = new TaskCompletionSource<object>();
+                // Avoids deadlock https://devblogs.microsoft.com/premier-developer/the-danger-of-taskcompletionsourcet-class/
+                var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var work = new WorkWrapper<object> {Work = i, CompletionSource = tcs};
                 firstStepBuffer.Add(work, cancel);
             };
