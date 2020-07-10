@@ -8,7 +8,7 @@
     <RepositoryUrl>https://github.com/devjoes/FileProcessor</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Description>Uses the pipes and filters pattern to handle enc/decrypting, compressing and deserializing files.</Description>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

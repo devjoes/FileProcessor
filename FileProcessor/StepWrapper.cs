@@ -106,7 +106,8 @@ namespace FileProcessor
                 }
                 else
                 {
-                    var individualCompletionSource = new TaskCompletionSource<object>();
+                    // Avoids deadlock https://devblogs.microsoft.com/premier-developer/the-danger-of-taskcompletionsourcet-class/
+                    var individualCompletionSource = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
                     subTasks.Add(individualCompletionSource.Task);
                     next.Add(new WorkWrapper<object>(result, consumed)
                     {
