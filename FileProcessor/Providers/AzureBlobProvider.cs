@@ -13,6 +13,7 @@ using Azure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
@@ -57,25 +58,12 @@ namespace FileProcessor.Providers
                 throw;
             }
 
-            BlobItem lastBlob = null;
             await foreach (var blob in blobs)
             {
-                if (lastBlob != null)
-                {
-                    input.AfterProcessing?.Invoke(this.client, lastBlob);
-                    lastBlob = null;
-                }
                 if (rx.IsMatch(blob.Name))
                 {
-                    input.BeforeProcessing?.Invoke(this.client, blob);
                     yield return await AzureBlob.FromBlob(blob, this.client, this.downloadFilesOnceFound);
-                    lastBlob = blob;
                 }
-            }
-
-            if (lastBlob != null)
-            {
-                input.AfterProcessing?.Invoke(this.client, lastBlob);
             }
         }
 
@@ -93,6 +81,7 @@ namespace FileProcessor.Providers
 
         private AzureBlob(BlobItem blobItem, BlobContainerClient client)
         {
+            this.FileReference = client.GetBlockBlobClient(blobItem.Name).Uri.AbsoluteUri;
             this.blobItem = blobItem;
             this.client = client;
         }
@@ -123,7 +112,7 @@ namespace FileProcessor.Providers
             return new FileInfo(this.tmp);
         }
 
-        public string FileReference => this.blobItem.Name;
+        public string FileReference { get; private set; }
 
         public static async Task<AzureBlob> FromBlob(BlobItem blobItem, BlobContainerClient client, bool download)
         {
@@ -143,7 +132,5 @@ namespace FileProcessor.Providers
     {
         public string Prefix { get; set; }
         public string NameRegex { get; set; }
-        public Func<BlobContainerClient, BlobItem, Task> BeforeProcessing { get; set; }
-        public Func<BlobContainerClient, BlobItem, Task> AfterProcessing { get; set; }
     }
 }
