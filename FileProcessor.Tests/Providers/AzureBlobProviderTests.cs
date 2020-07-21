@@ -26,8 +26,8 @@ namespace FileProcessor.Tests.Providers
             var client = new BlobContainerClient(this.connectionString,containerName);
             client.DeleteIfExists();
             client.Create();
-            client.GetBlobClient("foo1").Upload(new MemoryStream(Encoding.UTF8.GetBytes("foo")));
-            client.GetBlobClient("foo2").Upload(new MemoryStream(Encoding.UTF8.GetBytes("foo")));
+            client.GetBlobClient("foo1.txt").Upload(new MemoryStream(Encoding.UTF8.GetBytes("foo")));
+            client.GetBlobClient("foo2.txt").Upload(new MemoryStream(Encoding.UTF8.GetBytes("foo")));
             client.GetBlobClient("bar").Upload(new MemoryStream(Encoding.UTF8.GetBytes("bar")));
         }
 
@@ -35,35 +35,17 @@ namespace FileProcessor.Tests.Providers
         public async Task ExecuteDownloadsBlobs()
         {
             var blobProvider = new AzureBlobProvider(this.connectionString, containerName, null);
-            var before = new List<BlobItem>();
-            var  after = new List<BlobItem>();
-            var files = blobProvider.Execute(new AzureBlobProviderOptions
-            {
-                BeforeProcessing = (_, item) =>
-                {
-                    before.Add(item);
-                    return Task.CompletedTask;
-                },
-                AfterProcessing = (_, item) =>
-                {
-                after.Add(item);
-                return Task.CompletedTask;
-            }
-            });
+    
+            var files = blobProvider.Execute(new AzureBlobProviderOptions());
             List<IFileReference> results = new List<IFileReference>();
             await foreach (var file in files)
             {
-                if (results.Any())
-                {
-                    Assert.Equal(after.Last().Name, results.Last().FileReference);
-                }
-                Assert.Equal(before.Last().Name, file.FileReference);
                 results.Add(file);
             }
 
             Assert.Equal(3, results.Count);
-            Assert.Equal("bar", results.First().FileReference);
-            Assert.Equal("foo2", results.Last().FileReference);
+            Assert.Equal("bar", results.First().FileReference.Split('/').Last());
+            Assert.Equal("foo2.txt", results.Last().FileReference.Split('/').Last());
         }
 
 
@@ -80,7 +62,7 @@ namespace FileProcessor.Tests.Providers
 
             Assert.Collection(results, f =>
             {
-                Assert.Equal("bar", f.FileReference);
+                Assert.Equal("bar", f.FileReference.Split('/').Last());
                 Assert.Equal("bar", File.ReadAllText(f.GetLocalFileInfo().Result.FullName));
             });
         }
@@ -89,7 +71,7 @@ namespace FileProcessor.Tests.Providers
         public async Task ExecuteDownloadsBlobsByRegex()
         {
             var blobProvider = new AzureBlobProvider(this.connectionString, containerName, null);
-            var files = blobProvider.Execute(new AzureBlobProviderOptions { NameRegex = "\\d$"});
+            var files = blobProvider.Execute(new AzureBlobProviderOptions { NameRegex = "\\d\\.txt$"});
             List<IFileReference> results = new List<IFileReference>();
             await foreach (var file in files)
             {
@@ -98,11 +80,11 @@ namespace FileProcessor.Tests.Providers
 
             Assert.Collection(results, f =>
             {
-                Assert.Equal("foo1", f.FileReference);
+                Assert.Equal("foo1.txt", f.FileReference.Split('/').Last());
                 Assert.Equal("foo", File.ReadAllText(f.GetLocalFileInfo().Result.FullName));
             }, f =>
             {
-                Assert.Equal("foo2", f.FileReference);
+                Assert.Equal("foo2.txt", f.FileReference.Split('/').Last());
                 Assert.Equal("foo", File.ReadAllText(f.GetLocalFileInfo().Result.FullName));
             });
         }
