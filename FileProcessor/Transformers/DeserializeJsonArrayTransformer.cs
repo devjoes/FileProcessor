@@ -21,38 +21,42 @@ namespace FileProcessor.Transformers
             {
                 yield break;
             }
-            var fi = await input.GetLocalFileInfo();
-            var streamReader = fi.OpenText();
-            using var reader = new JsonTextReader(streamReader);
-            //using var reader = await this.GetReader(input);
+            using var reader = await this.GetReader(input);
             var serializer = this.options.SerializerSettings == null
                 ? new JsonSerializer()
                 : JsonSerializer.Create(this.options.SerializerSettings);
-            await foreach (var item in this.ReadJson(reader, serializer, streamReader))
+            await foreach (var item in this.ReadJson(reader, serializer))
             {
                 yield return item;
             }
         }
 
         //todo: put back
-        //protected virtual async  Task<JsonReader> GetReader(IFileReference input)
-        //{
-        //    var fi = await input.GetLocalFileInfo();
-        //    var streamReader = fi.OpenText();
-        //    return new JsonTextReader(streamReader);
-        //}
+        protected virtual async Task<JsonReader> GetReader(IFileReference input)
+        {
+            var fi = await input.GetLocalFileInfo();
+            var streamReader = fi.OpenText();
+            return new JsonTextReaderWithExposedTextReader(streamReader);
+        }
 
-        protected virtual async IAsyncEnumerable<T> ReadJson(JsonReader reader, JsonSerializer serializer,
-            StreamReader streamReader)
+        protected virtual async IAsyncEnumerable<T> ReadJson(JsonReader reader, JsonSerializer serializer)
         {
             var eof = false;
 
+            StreamReader streamReader = null;
+            if (reader is IJsonTextReaderWithExposedTextReader exposedTextReader)
+            {
+                streamReader = exposedTextReader.Reader as StreamReader;
+            }
+
             void ThrowJsonEx(string msg, JsonReaderException ex)
             {
-                throw new Exception(msg+"\n" +
+                throw new Exception(msg + "\n" +
                                     "Path: " + reader.Path +
-                                    "\nPosition: " + streamReader.BaseStream.Position +
-                                    "\nCanRead: " + streamReader.BaseStream.CanRead, ex);
+                                    (streamReader == null ? string.Empty
+                                    : "\nPosition: " + streamReader.BaseStream.Position +
+                                     "\nCanRead: " + streamReader.BaseStream.CanRead)
+                    , ex);
             }
             try
             {
@@ -60,7 +64,7 @@ namespace FileProcessor.Transformers
             }
             catch (JsonReaderException ex)
             {
-                ThrowJsonEx("Error skipping JSON",ex);
+                ThrowJsonEx("Error skipping JSON", ex);
             }
 
             while (!eof)
@@ -88,5 +92,19 @@ namespace FileProcessor.Transformers
     {
         public string JsonPath { get; set; } = string.Empty;
         public JsonSerializerSettings SerializerSettings { get; set; } = null;
+    }
+
+    public interface IJsonTextReaderWithExposedTextReader
+    {
+        TextReader Reader { get; }
+    }
+    public class JsonTextReaderWithExposedTextReader : JsonTextReader, IJsonTextReaderWithExposedTextReader
+    {
+        public JsonTextReaderWithExposedTextReader(TextReader reader) : base(reader)
+        {
+            this.Reader = reader;
+        }
+
+        public TextReader Reader { get; }
     }
 }
