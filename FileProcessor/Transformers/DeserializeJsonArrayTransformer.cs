@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
@@ -31,7 +32,6 @@ namespace FileProcessor.Transformers
             }
         }
 
-        //todo: put back
         protected virtual async Task<JsonReader> GetReader(IFileReference input)
         {
             var fi = await input.GetLocalFileInfo();
@@ -44,15 +44,27 @@ namespace FileProcessor.Transformers
             var eof = false;
 
             StreamReader streamReader = null;
+            string state = "";
             if (reader is IJsonTextReaderWithExposedTextReader exposedTextReader)
             {
                 streamReader = exposedTextReader.Reader as StreamReader;
+                state= exposedTextReader.State;
+            }
+
+            int lineNumber=-1, linePos=-1, depth=-1;
+            if (reader is JsonTextReader textReader)
+            {
+                lineNumber = textReader.LineNumber;
+                linePos = textReader.LinePosition;
+                depth = textReader.Depth;
             }
 
             void ThrowJsonEx(string msg, JsonReaderException ex)
             {
-                throw new Exception(msg + "\n" +
-                                    "Path: " + reader.Path +
+                throw new Exception(msg +
+                                    "\nPath: " + reader.Path +
+                                    "\nState: " + state +
+                                    $"\nTextInfo: {lineNumber} {linePos} {depth}"+
                                     (streamReader == null ? string.Empty
                                     : "\nPosition: " + streamReader.BaseStream.Position +
                                      "\nCanRead: " + streamReader.BaseStream.CanRead)
@@ -97,6 +109,7 @@ namespace FileProcessor.Transformers
     public interface IJsonTextReaderWithExposedTextReader
     {
         TextReader Reader { get; }
+        string State { get; }
     }
     public class JsonTextReaderWithExposedTextReader : JsonTextReader, IJsonTextReaderWithExposedTextReader
     {
@@ -106,5 +119,6 @@ namespace FileProcessor.Transformers
         }
 
         public TextReader Reader { get; }
+        public string State => this.CurrentState.ToString();
     }
 }
