@@ -120,7 +120,10 @@ namespace FileProcessor
 
         private static async IAsyncEnumerable<object> toSingleAsyncEnumerable<TOut>(Task<TOut> task)
         {
-            yield return await task;
+            if (task != null)
+            {
+                yield return await task;
+            }
         }
 
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
