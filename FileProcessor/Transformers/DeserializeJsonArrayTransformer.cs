@@ -48,7 +48,7 @@ namespace FileProcessor.Transformers
             if (reader is IJsonTextReaderWithExposedTextReader exposedTextReader)
             {
                 streamReader = exposedTextReader.Reader as StreamReader;
-                state= exposedTextReader.State;
+                state= exposedTextReader.ReaderState;
             }
 
             int lineNumber=-1, linePos=-1, depth=-1;
@@ -106,10 +106,11 @@ namespace FileProcessor.Transformers
         public JsonSerializerSettings SerializerSettings { get; set; } = null;
     }
 
+    // TODO: I think this was just for debugging and can be removed
     public interface IJsonTextReaderWithExposedTextReader
     {
         TextReader Reader { get; }
-        string State { get; }
+        string ReaderState { get; }
     }
     public class JsonTextReaderWithExposedTextReader : JsonTextReader, IJsonTextReaderWithExposedTextReader
     {
@@ -119,6 +120,6 @@ namespace FileProcessor.Transformers
         }
 
         public TextReader Reader { get; }
-        public string State => this.CurrentState.ToString();
+        public string ReaderState => this.CurrentState.ToString();
     }
 }
