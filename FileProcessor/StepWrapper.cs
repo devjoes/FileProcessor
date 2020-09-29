@@ -39,26 +39,38 @@ namespace FileProcessor
         //TODO: make it not pass null if no output from step
         private async Task mainLoop<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<TIn>> enumerable, AwaitableBlockingCollection<WorkWrapper<object>> next, Func<TIn, IAsyncEnumerable<TOut>> step, CancellationToken cancellationToken)
         {
-            bool finished = false;
-            //using var enumerator = enumerable.GetEnumerator();
-            while (!finished && !cancellationToken.IsCancellationRequested)
+            try
             {
-                try
+                bool finished = false;
+                //using var enumerator = enumerable.GetEnumerator();
+                while (!finished && !cancellationToken.IsCancellationRequested)
                 {
-                    var consumed = await enumerable.TakeAsync(cancellationToken);
-                    finished = consumed == default;
-                    Debug.WriteLine(consumed?.Index + "");
-                    if (finished)
-                    {
-                        continue;
-                    }
-                    
                     try
                     {
-                        if (consumed.CompletionSource.Task.IsCompleted)
+                        var consumed = await enumerable.TakeAsync(cancellationToken);
+                        finished = consumed == default;
+                        Debug.WriteLine(consumed?.Index + "");
+                        if (finished)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            if (consumed.CompletionSource.Task.IsCompleted)
+                                next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
+                            else
+                                await this.passWorkToNextStep(next, step(consumed.Work), consumed);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(ex.Message);
+                            Debug.WriteLine(ex.StackTrace);
+                            Console.WriteLine(ex.Message);
+                            Console.WriteLine(ex.StackTrace);
+                            consumed.CompletionSource.SetException(ex);
                             next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
-                        else
-                            await this.passWorkToNextStep(next, step(consumed.Work), consumed);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -66,22 +78,19 @@ namespace FileProcessor
                         Debug.WriteLine(ex.StackTrace);
                         Console.WriteLine(ex.Message);
                         Console.WriteLine(ex.StackTrace);
-                        consumed.CompletionSource.SetException(ex);
-                        next.Add(WorkWrapper<object>.NoOperation(consumed), this.cancel);
                     }
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(ex.Message);
-                    Debug.WriteLine(ex.StackTrace);
-                    Console.WriteLine(ex.Message);
-                    Console.WriteLine(ex.StackTrace);
-                }
-            }
 
-            next.CompleteAdding();
-            if (step is IAsyncDisposable ad) await ad.DisposeAsync();
-            (step as IDisposable)?.Dispose();
+                next.CompleteAdding();
+                if (step is IAsyncDisposable ad) await ad.DisposeAsync();
+                (step as IDisposable)?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                // This has to be caught because we are at the top of the callstack and we dont want to kill the app
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+            }
         }
 
         private async Task passWorkToNextStep<TIn, TOut>(AwaitableBlockingCollection<WorkWrapper<object>> next,
