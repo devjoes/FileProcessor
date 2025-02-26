@@ -9,13 +9,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v5
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 3.1.101
     - name: Setup NuGet.exe for use with actions
-      uses: NuGet/setup-nuget@v1.0.2
+      uses: NuGet/setup-nuget@v2
     - name: Fix nuget binary
       run: ls -l `whereis nuget.exe | sed 's/nuget:\s//'`;sudo chmod +x `whereis nuget.exe | sed 's/nuget:\s//'`
     - name: Install dependencies
