@@ -28,6 +28,6 @@ jobs:
       - name: Pack
         run: dotnet pack --no-restore --verbosity normal -o ./nuget
       - name: Publish
-        run: nuget push -ApiKey "$NUGET_KEY" -SkipDuplicate -NonInteractive -Source "https://www.nuget.org/" "nuget/"
+        run: dotnet nuget push -ApiKey "$NUGET_KEY" -SkipDuplicate -NonInteractive -Source "https://www.nuget.org/" "nuget/"
         env:
           NUGET_KEY: ${{ secrets.NUGET_KEY }}
