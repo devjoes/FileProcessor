@@ -1,38 +1,33 @@
 name: Nuget
 on:
   push:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 3.1.101
-    - name: Setup NuGet.exe for use with actions
-      uses: NuGet/setup-nuget@v2
-    - name: Install OpenSSL 1.1
-      run: |
-        wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-        sudo dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
-#    - name: Fix nuget binary
-#      run: ls -l `whereis nuget.exe | sed 's/nuget:\s//'`;sudo chmod +x `whereis nuget.exe | sed 's/nuget:\s//'`
-    - name: Install dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --configuration Release --no-restore
-# Disabled for now as broken and someone needs a new version with updated deps
-#    - name: Test
-#      run: dotnet test --no-restore --verbosity normal
-      
-    - name: Pack
-      run: dotnet pack --no-restore --verbosity normal -o ./nuget
-    - name: Publish
-      run: nuget.exe push -ApiKey "$NUGET_KEY" -SkipDuplicate -NonInteractive -Source "https://www.nuget.org/" "nuget/"
-      env:
-        NUGET_KEY: ${{ secrets.NUGET_KEY }}
+      - uses: actions/checkout@v4
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v4
+      - name: Setup NuGet.exe for use with actions
+        uses: NuGet/setup-nuget@v2
+      - name: Install OpenSSL 1.1
+        run: |
+          wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+          sudo dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb
+      #    - name: Fix nuget binary
+      #      run: ls -l `whereis nuget.exe | sed 's/nuget:\s//'`;sudo chmod +x `whereis nuget.exe | sed 's/nuget:\s//'`
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
+      - name: Pack
+        run: dotnet pack --no-restore --verbosity normal -o ./nuget
+      - name: Publish
+        run: nuget.exe push -ApiKey "$NUGET_KEY" -SkipDuplicate -NonInteractive -Source "https://www.nuget.org/" "nuget/"
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_KEY }}
