@@ -18,8 +18,7 @@ jobs:
       uses: NuGet/setup-nuget@v2
     - name: Install OpenSSL 1.1
       run: |
-        wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.23_amd64.deb
-        sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.23_amd64.deb
+        apt-get install --no-install-recommends --yes libssl1.1
 #    - name: Fix nuget binary
 #      run: ls -l `whereis nuget.exe | sed 's/nuget:\s//'`;sudo chmod +x `whereis nuget.exe | sed 's/nuget:\s//'`
     - name: Install dependencies
